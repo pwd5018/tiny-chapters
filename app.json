@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Tiny Chapters",
+    "slug": "tiny-chapters",
+    "scheme": "tinychapters",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "android": {
+      "package": "com.anonymous.tinychapters"
+    }
+  }
+}
