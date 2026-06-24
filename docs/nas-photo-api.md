@@ -127,9 +127,116 @@ Example response:
 ]
 ```
 
+### `GET /photos/search`
+
+Requires auth.
+
+Query params:
+
+- `q` optional string, matched against filename and path
+- `date` optional `YYYY-MM-DD`
+- `from` optional `YYYY-MM-DD`
+- `to` optional `YYYY-MM-DD`
+- `limit` optional number, default `50`
+- `offset` optional number, default `0`
+
+Returns paged results:
+
+```json
+{
+  "items": [],
+  "limit": 50,
+  "offset": 0,
+  "total": 0,
+  "hasMore": false
+}
+```
+
+### `GET /folders?path=`
+
+Requires auth.
+
+Returns child folders for a safe relative path under `PHOTO_LIBRARY_ROOT`.
+
+Example response:
+
+```json
+{
+  "path": "2026/06",
+  "parentPath": "2026",
+  "folders": [
+    {
+      "name": "12",
+      "path": "2026/06/12"
+    }
+  ]
+}
+```
+
+### `GET /folder-photos?path=&limit=&offset=`
+
+Requires auth.
+
+Returns paged indexed photos for the selected relative folder path.
+
+Example response:
+
+```json
+{
+  "path": "2026/06/12",
+  "items": [],
+  "limit": 50,
+  "offset": 0,
+  "total": 0,
+  "hasMore": false
+}
+```
+
 ### `GET /photos/:photoId`
 
 Returns one indexed photo record or `404` if missing.
+
+### `GET /photos/match`
+
+Requires auth.
+
+Query params:
+
+- `filename` optional
+- `takenAt` optional ISO string
+- `fileSize` optional number
+- `width` optional number
+- `height` optional number
+- `toleranceMinutes` optional number, default `10`
+
+Behavior:
+
+- tries a conservative metadata match against indexed NAS photos
+- false positives are treated as worse than misses
+- returns `404` when no confident match is found
+- returns `409` when multiple candidates are too close to call safely
+
+Matched response:
+
+```json
+{
+  "matched": true,
+  "confidence": 87,
+  "photo": {
+    "id": "sha256-or-stable-id",
+    "source": "nas",
+    "takenAt": "2026-06-17T14:22:00.000Z",
+    "filename": "IMG_4432.jpg",
+    "path": "/volume1/photos/2026/06/IMG_4432.jpg",
+    "thumbnailUrl": "http://192.168.1.50:5055/photos/sha/thumb",
+    "viewUrl": "http://192.168.1.50:5055/photos/sha/view",
+    "contentHash": "sha256...",
+    "fileSize": 3442231,
+    "width": 4032,
+    "height": 3024
+  }
+}
+```
 
 ## Stable photo ID strategy
 
@@ -152,11 +259,42 @@ Tiny Chapters should not duplicate the NAS photo library into Supabase or local 
 - `source`
 - `path`
 - `contentHash`
+- `syncStatus`
 
 This keeps:
 - the NAS as source of truth
 - Supabase focused on memory data
 - future export flows simpler
+
+The mobile app now uses:
+
+- `thumbnailUrl` for grid cards and lightweight picker browsing
+- `viewUrl` for simple full-image preview modals
+
+Those are served directly by the Photo API. No thumbnails are copied into Supabase.
+
+The mobile app now uses a native date picker for NAS day lookups instead of free-form date text entry. It still sends `YYYY-MM-DD` internally to the service layer and Photo API.
+
+## Captured photo durability model
+
+Tiny Chapters now supports temporary local phone photo refs in addition to durable NAS refs.
+
+Intended lifecycle:
+
+1. User captures or attaches a phone photo in the app
+2. Tiny Chapters stores metadata only, not the full photo binary
+3. The memory saves `source: "local"` with `syncStatus: "pending_nas_match"`
+4. The phone later backs that photo up to the NAS outside the app
+5. A future relink phase matches the temporary local ref to a durable NAS photo ID
+
+Tiny Chapters now also attempts that match immediately after attach or capture. If the photo is already backed up and indexed, the memory can store the durable NAS ref on the first save.
+
+Important:
+- `local_uri` is device-specific and not durable across devices
+- full photos are not uploaded to Supabase
+- thumbnails are not uploaded to Supabase
+- the NAS remains the long-term archive
+- matching stays conservative to avoid linking the wrong photo
 
 ## Broken link handling
 
@@ -261,6 +399,7 @@ Also note:
 - bearer token mismatch returns `401`
 - no photos for a date may be due to EXIF timestamp differences
 - HEIC thumbnail generation may depend on host image codec support
+- `/folders` and `/folder-photos` reject absolute paths and `..` traversal outside `PHOTO_LIBRARY_ROOT`
 
 ## Expected mobile behavior
 
@@ -268,3 +407,7 @@ Also note:
 - switch to NAS mode only when `EXPO_PUBLIC_PHOTO_SOURCE_MODE=nas`
 - if the NAS API is down, return empty results or nulls instead of crashing
 - continue saving memory photo references even when preview lookups fail later
+- keep local phone refs readable even before automatic NAS relink exists
+
+Future picker-oriented improvements:
+- optional local thumbnail cache if network latency ever makes it necessary

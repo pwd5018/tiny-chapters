@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { MemoryCard } from "@/components/MemoryCard";
 import { useMemoryService } from "@/services/memoryService";
@@ -13,10 +14,10 @@ export default function SearchScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
+  const runSearch = useCallback(() => {
     let isActive = true;
 
-    async function runSearch() {
+    async function loadResults() {
       setIsLoading(true);
       setErrorMessage("");
 
@@ -39,12 +40,14 @@ export default function SearchScreen() {
       }
     }
 
-    void runSearch();
+    void loadResults();
 
     return () => {
       isActive = false;
     };
   }, [getMemories, query, searchMemories]);
+
+  useFocusEffect(runSearch);
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">

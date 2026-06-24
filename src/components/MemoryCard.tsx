@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 
-import { getPhotoById } from "@/services/photo/photoService";
+import {
+  getAttachedPhotoPreviewUri,
+  summarizeAttachedPhotoStatuses,
+} from "@/services/photo/photoDurability";
+import { getPhotoById, getPhotoImageSource } from "@/services/photo/photoService";
 import { theme } from "@/theme/theme";
 import type { Memory } from "@/types/memory";
 import type { PhotoAsset } from "@/types/photo";
@@ -15,20 +20,35 @@ function formatDisplayDate(isoDate: string) {
 }
 
 export function MemoryCard({ memory }: { memory: Memory }) {
-  const [photoAssets, setPhotoAssets] = useState<PhotoAsset[]>([]);
+  const router = useRouter();
+  const [photoAssets, setPhotoAssets] = useState<Array<PhotoAsset | { id: string; thumbnailUrl: string }>>([]);
+  const [failedPreviewIds, setFailedPreviewIds] = useState<string[]>([]);
 
   useEffect(() => {
     let isActive = true;
 
     async function loadAttachedPhotos() {
       const previews = await Promise.all(
-        memory.attachedPhotos.slice(0, 3).map((photoRef) =>
-          getPhotoById(photoRef.photoId)
-        )
+        memory.attachedPhotos.slice(0, 3).map(async (photoRef) => {
+          const localPreviewUri = getAttachedPhotoPreviewUri(photoRef);
+
+          if (localPreviewUri) {
+            return {
+              id: photoRef.photoId,
+              thumbnailUrl: localPreviewUri,
+            };
+          }
+
+          return getPhotoById(photoRef.photoId);
+        })
       );
 
       if (isActive) {
-        setPhotoAssets(previews.filter((photo): photo is PhotoAsset => photo !== null));
+        setPhotoAssets(
+          previews.filter(
+            (photo): photo is PhotoAsset | { id: string; thumbnailUrl: string } => photo !== null
+          )
+        );
       }
     }
 
@@ -40,7 +60,7 @@ export function MemoryCard({ memory }: { memory: Memory }) {
   }, [memory.attachedPhotos]);
 
   return (
-    <View style={styles.card}>
+    <Pressable style={styles.card} onPress={() => router.push(`/memory/${memory.id}` as never)}>
       <Text style={styles.date}>{formatDisplayDate(memory.date)}</Text>
       <Text style={styles.prompt}>{memory.prompt}</Text>
       <Text style={styles.text}>{memory.text}</Text>
@@ -49,14 +69,28 @@ export function MemoryCard({ memory }: { memory: Memory }) {
         {memory.attachedPhotos.length} attached{" "}
         {memory.attachedPhotos.length === 1 ? "photo" : "photos"}
       </Text>
+      {memory.attachedPhotos.length ? (
+        <Text style={styles.photoStatusSummary}>
+          {summarizeAttachedPhotoStatuses(memory.attachedPhotos)}
+        </Text>
+      ) : null}
 
       {photoAssets.length ? (
         <View style={styles.previewRow}>
           {photoAssets.map((photo) => (
             <Image
               key={photo.id}
-              source={{ uri: photo.thumbnailUrl }}
+              source={getPhotoImageSource(
+                "viewUrl" in photo && failedPreviewIds.includes(photo.id)
+                  ? photo.viewUrl
+                  : photo.thumbnailUrl
+              )}
               style={styles.previewImage}
+              onError={() => {
+                if ("viewUrl" in photo && !failedPreviewIds.includes(photo.id)) {
+                  setFailedPreviewIds((current) => [...current, photo.id]);
+                }
+              }}
             />
           ))}
         </View>
@@ -75,7 +109,7 @@ export function MemoryCard({ memory }: { memory: Memory }) {
           ))}
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -109,6 +143,11 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: theme.typography.caption,
     fontWeight: "600",
+  },
+  photoStatusSummary: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    marginTop: -2,
   },
   previewRow: {
     flexDirection: "row",

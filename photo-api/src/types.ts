@@ -55,6 +55,57 @@ export type ApiPhotoAsset = {
   height?: number;
 };
 
+export type PhotoSearchParams = {
+  q?: string;
+  date?: string;
+  from?: string;
+  to?: string;
+  limit: number;
+  offset: number;
+};
+
+export type PagedPhotoResponse = {
+  items: ApiPhotoAsset[];
+  limit: number;
+  offset: number;
+  total: number;
+  hasMore: boolean;
+};
+
+export type FolderEntry = {
+  name: string;
+  path: string;
+};
+
+export type FolderResponse = {
+  path: string;
+  parentPath: string | null;
+  folders: FolderEntry[];
+};
+
+export type FolderPhotosResponse = PagedPhotoResponse & {
+  path: string;
+};
+
+export type PhotoMatchCandidate = {
+  filename?: string;
+  takenAt?: string;
+  fileSize?: number;
+  width?: number;
+  height?: number;
+  toleranceMinutes?: number;
+};
+
+export type PhotoMatchResult = {
+  matched: boolean;
+  confidence?: number;
+  photo?: ApiPhotoAsset;
+  candidates?: Array<{
+    confidence: number;
+    photo: ApiPhotoAsset;
+  }>;
+};
+
 export type StatusPayload = {
   status: "ok";
   serverStartedAt: string;

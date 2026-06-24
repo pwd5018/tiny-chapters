@@ -10,6 +10,11 @@ import {
   createNasPhotoProvider,
   testNasPhotoConnection,
 } from "@/services/photo/nasPhotoProvider";
+import type {
+  PhotoMatchCandidate,
+  PhotoPagingParams,
+  PhotoSearchParams,
+} from "@/types/photo";
 
 const nasPhotoProvider = createNasPhotoProvider(nasPhotoApiBaseUrl, nasPhotoApiKey);
 
@@ -43,6 +48,10 @@ export function getNasPhotoApiBaseUrl() {
 
 export function getNasPhotoApiKeyConfigured() {
   return Boolean(nasPhotoApiKey);
+}
+
+export function isNasPhotoMatchingAvailable() {
+  return photoSourceMode === "nas" && isNasPhotoApiConfigured();
 }
 
 export async function testPhotoConnection(date: string) {
@@ -86,4 +95,42 @@ export async function loadPhotosForDate(date: string) {
     message: photos.length ? "" : "NAS photo source responded, but no photos were found for this day.",
     ok: true,
   };
+}
+
+export async function matchPhotoCandidate(candidate: PhotoMatchCandidate) {
+  if (!isNasPhotoMatchingAvailable()) {
+    return null;
+  }
+
+  return nasPhotoProvider.matchPhotoCandidate(candidate);
+}
+
+export async function getFolders(path?: string) {
+  return getActiveProvider().getFolders(path);
+}
+
+export async function getFolderPhotos(path: string, paging?: PhotoPagingParams) {
+  return getActiveProvider().getFolderPhotos(path, paging);
+}
+
+export async function searchPhotos(params: PhotoSearchParams) {
+  return getActiveProvider().searchPhotos(params);
+}
+
+export function getPhotoImageSource(uri: string) {
+  if (
+    photoSourceMode === "nas" &&
+    nasPhotoApiKey &&
+    nasPhotoApiBaseUrl &&
+    uri.startsWith(nasPhotoApiBaseUrl)
+  ) {
+    return {
+      uri,
+      headers: {
+        Authorization: `Bearer ${nasPhotoApiKey}`,
+      },
+    };
+  }
+
+  return { uri };
 }

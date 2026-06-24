@@ -3,7 +3,12 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { config } from "./config";
-import type { PhotoAssetRecord, ScanRunRecord, ScanSummary } from "./types";
+import type {
+  PhotoAssetRecord,
+  PhotoSearchParams,
+  ScanRunRecord,
+  ScanSummary,
+} from "./types";
 
 fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
 const schemaSql = fs.readFileSync(path.resolve(process.cwd(), "src/db/schema.sql"), "utf8");
@@ -27,6 +32,9 @@ const selectByIdStatement = db.prepare(
 );
 const selectByPathStatement = db.prepare(
   "select * from photo_assets where current_path = ? and is_missing = 0"
+);
+const selectAllActivePhotosStatement = db.prepare(
+  "select * from photo_assets where is_missing = 0 order by taken_at desc"
 );
 const selectByDateStatement = db.prepare(
   "select * from photo_assets where is_missing = 0 and substr(taken_at, 1, 10) = ? order by taken_at asc"
@@ -116,6 +124,10 @@ export function getPhotosByDate(date: string) {
   return selectByDateStatement.all(date) as PhotoAssetRecord[];
 }
 
+export function getAllActivePhotos() {
+  return selectAllActivePhotosStatement.all() as PhotoAssetRecord[];
+}
+
 export function getPhotoByPath(currentPath: string) {
   return (selectByPathStatement.get(currentPath) as PhotoAssetRecord | undefined) ?? null;
 }
@@ -126,6 +138,74 @@ export function getAllPhotoIds() {
 
 export function getPhotoByHash(contentHash: string) {
   return (selectByHashStatement.get(contentHash) as PhotoAssetRecord | undefined) ?? null;
+}
+
+function toLocalDateString(isoString: string) {
+  const date = new Date(isoString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function paginateRecords(records: PhotoAssetRecord[], limit: number, offset: number) {
+  return {
+    items: records.slice(offset, offset + limit),
+    limit,
+    offset,
+    total: records.length,
+    hasMore: offset + limit < records.length,
+  };
+}
+
+export function searchPhotos(params: PhotoSearchParams) {
+  const normalizedQuery = params.q?.trim().toLowerCase() ?? "";
+  const filtered = getAllActivePhotos()
+    .filter((record) => {
+      const localDate = toLocalDateString(record.taken_at);
+
+      if (params.date && localDate !== params.date) {
+        return false;
+      }
+
+      if (params.from && localDate < params.from) {
+        return false;
+      }
+
+      if (params.to && localDate > params.to) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      return (
+        record.filename.toLowerCase().includes(normalizedQuery) ||
+        record.current_path.toLowerCase().includes(normalizedQuery)
+      );
+    })
+    .sort((left, right) => right.taken_at.localeCompare(left.taken_at));
+
+  return paginateRecords(filtered, params.limit, params.offset);
+}
+
+export function getPhotosInFolder(folderPath: string, limit: number, offset: number) {
+  const normalizedFolderPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  const folderPrefix = normalizedFolderPath ? `${normalizedFolderPath}/` : "";
+  const filtered = getAllActivePhotos()
+    .filter((record) => {
+      const normalizedPath = record.current_path.replace(/\\/g, "/").toLowerCase();
+
+      if (!normalizedFolderPath) {
+        return true;
+      }
+
+      return normalizedPath.startsWith(folderPrefix);
+    })
+    .sort((left, right) => right.taken_at.localeCompare(left.taken_at));
+
+  return paginateRecords(filtered, limit, offset);
 }
 
 export function getPhotoCounts() {

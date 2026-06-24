@@ -1,5 +1,13 @@
 import type { PhotoProvider } from "@/services/photo/photoProvider";
-import type { PhotoAsset } from "@/types/photo";
+import type {
+  FolderPhotosResult,
+  FolderResult,
+  PagedPhotoResult,
+  PhotoAsset,
+  PhotoMatchCandidate,
+  PhotoPagingParams,
+  PhotoSearchParams,
+} from "@/types/photo";
 
 const REQUEST_TIMEOUT_MS = 5000;
 
@@ -66,6 +74,82 @@ function normalizePhotoAsset(input: unknown): PhotoAsset | null {
     fileSize: typeof candidate.fileSize === "number" ? candidate.fileSize : undefined,
     width: typeof candidate.width === "number" ? candidate.width : undefined,
     height: typeof candidate.height === "number" ? candidate.height : undefined,
+  };
+}
+
+function normalizePagedPhotoResult(input: unknown): PagedPhotoResult | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const candidate = input as Record<string, unknown>;
+  if (
+    !Array.isArray(candidate.items) ||
+    typeof candidate.limit !== "number" ||
+    typeof candidate.offset !== "number" ||
+    typeof candidate.total !== "number" ||
+    typeof candidate.hasMore !== "boolean"
+  ) {
+    return null;
+  }
+
+  return {
+    items: candidate.items
+      .map((item) => normalizePhotoAsset(item))
+      .filter((item): item is PhotoAsset => item !== null),
+    limit: candidate.limit,
+    offset: candidate.offset,
+    total: candidate.total,
+    hasMore: candidate.hasMore,
+  };
+}
+
+function normalizeFolderResult(input: unknown): FolderResult | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const candidate = input as Record<string, unknown>;
+  if (
+    typeof candidate.path !== "string" ||
+    (candidate.parentPath !== null && typeof candidate.parentPath !== "string") ||
+    !Array.isArray(candidate.folders)
+  ) {
+    return null;
+  }
+
+  const folders = candidate.folders.filter(
+    (item): item is FolderResult["folders"][number] =>
+      Boolean(
+        item &&
+          typeof item === "object" &&
+          typeof (item as Record<string, unknown>).name === "string" &&
+          typeof (item as Record<string, unknown>).path === "string"
+      )
+  );
+
+  return {
+    path: candidate.path,
+    parentPath: candidate.parentPath,
+    folders,
+  };
+}
+
+function normalizeFolderPhotosResult(input: unknown): FolderPhotosResult | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const candidate = input as Record<string, unknown>;
+  const paged = normalizePagedPhotoResult(candidate);
+
+  if (!paged || typeof candidate.path !== "string") {
+    return null;
+  }
+
+  return {
+    path: candidate.path,
+    ...paged,
   };
 }
 
@@ -371,6 +455,293 @@ export function createNasPhotoProvider(baseUrl: string, apiKey: string): PhotoPr
       } catch (error) {
         logWarning("Photo lookup request failed.", error);
         return null;
+      }
+    },
+
+    async matchPhotoCandidate(candidate: PhotoMatchCandidate) {
+      if (!normalizedBaseUrl || !apiKey) {
+        logWarning("Missing NAS base URL or API key for photo matching.");
+        return null;
+      }
+
+      try {
+        const query = new URLSearchParams();
+
+        if (candidate.filename) {
+          query.set("filename", candidate.filename);
+        }
+        if (candidate.takenAt) {
+          query.set("takenAt", candidate.takenAt);
+        }
+        if (typeof candidate.fileSize === "number") {
+          query.set("fileSize", String(candidate.fileSize));
+        }
+        if (typeof candidate.width === "number") {
+          query.set("width", String(candidate.width));
+        }
+        if (typeof candidate.height === "number") {
+          query.set("height", String(candidate.height));
+        }
+        if (typeof candidate.toleranceMinutes === "number") {
+          query.set("toleranceMinutes", String(candidate.toleranceMinutes));
+        }
+
+        const response = await fetchWithTimeout(
+          `${normalizedBaseUrl}/photos/match?${query.toString()}`,
+          apiKey
+        );
+
+        if (response.status === 401) {
+          logWarning("Photo match request was unauthorized.", candidate);
+          return null;
+        }
+
+        if (response.status === 404 || response.status === 409) {
+          return null;
+        }
+
+        if (!response.ok) {
+          logWarning(`Photo match failed with status ${response.status}.`, candidate);
+          return null;
+        }
+
+        const payload = (await response.json()) as Record<string, unknown>;
+        const normalizedPhoto = normalizePhotoAsset(payload.photo);
+
+        if (!normalizedPhoto) {
+          logWarning("Photo match returned invalid payload.", payload);
+          return null;
+        }
+
+        return normalizedPhoto;
+      } catch (error) {
+        logWarning("Photo match request failed.", error);
+        return null;
+      }
+    },
+
+    async searchPhotos(params: PhotoSearchParams) {
+      if (!normalizedBaseUrl || !apiKey) {
+        logWarning("Missing NAS base URL or API key for photo search.");
+        return {
+          items: [],
+          limit: params.limit ?? 50,
+          offset: params.offset ?? 0,
+          total: 0,
+          hasMore: false,
+        };
+      }
+
+      try {
+        const query = new URLSearchParams();
+
+        if (params.q?.trim()) {
+          query.set("q", params.q.trim());
+        }
+        if (params.date) {
+          query.set("date", params.date);
+        }
+        if (params.from) {
+          query.set("from", params.from);
+        }
+        if (params.to) {
+          query.set("to", params.to);
+        }
+        if (typeof params.limit === "number") {
+          query.set("limit", String(params.limit));
+        }
+        if (typeof params.offset === "number") {
+          query.set("offset", String(params.offset));
+        }
+
+        const response = await fetchWithTimeout(
+          `${normalizedBaseUrl}/photos/search?${query.toString()}`,
+          apiKey
+        );
+
+        if (response.status === 401) {
+          logWarning("Photo search request was unauthorized.", params);
+          return {
+            items: [],
+            limit: params.limit ?? 50,
+            offset: params.offset ?? 0,
+            total: 0,
+            hasMore: false,
+          };
+        }
+
+        if (!response.ok) {
+          logWarning(`Photo search failed with status ${response.status}.`, params);
+          return {
+            items: [],
+            limit: params.limit ?? 50,
+            offset: params.offset ?? 0,
+            total: 0,
+            hasMore: false,
+          };
+        }
+
+        const payload = normalizePagedPhotoResult(await response.json());
+        if (!payload) {
+          logWarning("Photo search returned invalid payload.", params);
+          return {
+            items: [],
+            limit: params.limit ?? 50,
+            offset: params.offset ?? 0,
+            total: 0,
+            hasMore: false,
+          };
+        }
+
+        return payload;
+      } catch (error) {
+        logWarning("Photo search request failed.", error);
+        return {
+          items: [],
+          limit: params.limit ?? 50,
+          offset: params.offset ?? 0,
+          total: 0,
+          hasMore: false,
+        };
+      }
+    },
+
+    async getFolders(folderPath?: string) {
+      if (!normalizedBaseUrl || !apiKey) {
+        logWarning("Missing NAS base URL or API key for folder lookup.");
+        return {
+          path: folderPath ?? "",
+          parentPath: null,
+          folders: [],
+        };
+      }
+
+      try {
+        const query = new URLSearchParams();
+        if (folderPath?.trim()) {
+          query.set("path", folderPath.trim());
+        }
+
+        const response = await fetchWithTimeout(
+          `${normalizedBaseUrl}/folders?${query.toString()}`,
+          apiKey
+        );
+
+        if (response.status === 401) {
+          logWarning("Folder lookup was unauthorized.", folderPath);
+          return {
+            path: folderPath ?? "",
+            parentPath: null,
+            folders: [],
+          };
+        }
+
+        if (!response.ok) {
+          logWarning(`Folder lookup failed with status ${response.status}.`, folderPath);
+          return {
+            path: folderPath ?? "",
+            parentPath: null,
+            folders: [],
+          };
+        }
+
+        const payload = normalizeFolderResult(await response.json());
+        if (!payload) {
+          logWarning("Folder lookup returned invalid payload.", folderPath);
+          return {
+            path: folderPath ?? "",
+            parentPath: null,
+            folders: [],
+          };
+        }
+
+        return payload;
+      } catch (error) {
+        logWarning("Folder lookup request failed.", error);
+        return {
+          path: folderPath ?? "",
+          parentPath: null,
+          folders: [],
+        };
+      }
+    },
+
+    async getFolderPhotos(folderPath: string, paging?: PhotoPagingParams) {
+      if (!normalizedBaseUrl || !apiKey) {
+        logWarning("Missing NAS base URL or API key for folder photos.");
+        return {
+          path: folderPath,
+          items: [],
+          limit: paging?.limit ?? 50,
+          offset: paging?.offset ?? 0,
+          total: 0,
+          hasMore: false,
+        };
+      }
+
+      try {
+        const query = new URLSearchParams();
+        query.set("path", folderPath);
+        if (typeof paging?.limit === "number") {
+          query.set("limit", String(paging.limit));
+        }
+        if (typeof paging?.offset === "number") {
+          query.set("offset", String(paging.offset));
+        }
+
+        const response = await fetchWithTimeout(
+          `${normalizedBaseUrl}/folder-photos?${query.toString()}`,
+          apiKey
+        );
+
+        if (response.status === 401) {
+          logWarning("Folder photos lookup was unauthorized.", folderPath);
+          return {
+            path: folderPath,
+            items: [],
+            limit: paging?.limit ?? 50,
+            offset: paging?.offset ?? 0,
+            total: 0,
+            hasMore: false,
+          };
+        }
+
+        if (!response.ok) {
+          logWarning(`Folder photos failed with status ${response.status}.`, folderPath);
+          return {
+            path: folderPath,
+            items: [],
+            limit: paging?.limit ?? 50,
+            offset: paging?.offset ?? 0,
+            total: 0,
+            hasMore: false,
+          };
+        }
+
+        const payload = normalizeFolderPhotosResult(await response.json());
+        if (!payload) {
+          logWarning("Folder photos returned invalid payload.", folderPath);
+          return {
+            path: folderPath,
+            items: [],
+            limit: paging?.limit ?? 50,
+            offset: paging?.offset ?? 0,
+            total: 0,
+            hasMore: false,
+          };
+        }
+
+        return payload;
+      } catch (error) {
+        logWarning("Folder photos request failed.", error);
+        return {
+          path: folderPath,
+          items: [],
+          limit: paging?.limit ?? 50,
+          offset: paging?.offset ?? 0,
+          total: 0,
+          hasMore: false,
+        };
       }
     },
   };

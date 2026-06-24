@@ -34,6 +34,13 @@ export type SupabaseMemoryPhotoRefRow = {
   path: string;
   content_hash: string | null;
   attached_at: string;
+  filename: string | null;
+  taken_at: string | null;
+  file_size: number | null;
+  width: number | null;
+  height: number | null;
+  local_uri: string | null;
+  sync_status: string | null;
 };
 
 export const supabase: SupabaseClient | null = isSupabaseConfigured

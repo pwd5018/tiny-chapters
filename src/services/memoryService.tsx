@@ -7,12 +7,16 @@ import {
   type SupabaseMemoryRow,
 } from "@/lib/supabase";
 import { getCurrentUser } from "@/services/auth/authService";
+import { normalizeAttachedPhotoSyncStatus } from "@/services/photo/photoDurability";
 import type { CreateMemoryInput, Memory } from "@/types/memory";
 
 type MemoryRepository = {
   getMemories: () => Promise<Memory[]>;
   getMemoryById: (id: string) => Promise<Memory | null>;
   createMemory: (input: CreateMemoryInput) => Promise<Memory>;
+  updateMemory: (id: string, input: Omit<CreateMemoryInput, "attachedPhotos">) => Promise<Memory>;
+  deleteMemory: (id: string) => Promise<void>;
+  updateMemoryPhotoRefs: (memoryId: string, attachedPhotos: Memory["attachedPhotos"]) => Promise<void>;
   searchMemories: (query: string) => Promise<Memory[]>;
   getDailyPrompt: (date?: Date) => string;
 };
@@ -49,6 +53,16 @@ function mapMemoryRow(
       path: photoRef.path,
       attachedAt: photoRef.attached_at,
       contentHash: photoRef.content_hash ?? undefined,
+      filename: photoRef.filename ?? undefined,
+      takenAt: photoRef.taken_at ?? undefined,
+      fileSize: photoRef.file_size ?? undefined,
+      width: photoRef.width ?? undefined,
+      height: photoRef.height ?? undefined,
+      localUri: photoRef.local_uri ?? undefined,
+      syncStatus: normalizeAttachedPhotoSyncStatus(
+        photoRef.sync_status,
+        photoRef.source === "local" ? "pending_nas_match" : "linked_to_nas"
+      ),
     })),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -74,7 +88,9 @@ async function fetchPhotoRefsByMemoryIds(memoryIds: string[]) {
   const userId = await getUserIdOrThrow();
   const { data, error } = await supabase
     .from("memory_photo_refs")
-    .select("id, memory_id, user_id, photo_id, source, path, content_hash, attached_at")
+    .select(
+      "id, memory_id, user_id, photo_id, source, path, content_hash, attached_at, filename, taken_at, file_size, width, height, local_uri, sync_status"
+    )
     .eq("user_id", userId)
     .in("memory_id", memoryIds)
     .order("attached_at", { ascending: true });
@@ -98,6 +114,40 @@ async function loadMemoriesFromRows(rows: SupabaseMemoryRow[]) {
   return sortMemories(
     rows.map((row) => mapMemoryRow(row, refsByMemoryId.get(row.id) ?? []))
   );
+}
+
+async function insertPhotoRefs(
+  memoryId: string,
+  userId: string,
+  attachedPhotos: Memory["attachedPhotos"]
+) {
+  if (!attachedPhotos.length) {
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from("memory_photo_refs").insert(
+    attachedPhotos.map((photo) => ({
+      memory_id: memoryId,
+      user_id: userId,
+      photo_id: photo.photoId,
+      source: photo.source,
+      path: photo.path,
+      content_hash: photo.contentHash ?? null,
+      filename: photo.filename ?? null,
+      taken_at: photo.takenAt ?? null,
+      file_size: photo.fileSize ?? null,
+      width: photo.width ?? null,
+      height: photo.height ?? null,
+      local_uri: photo.localUri ?? null,
+      sync_status: photo.syncStatus,
+      attached_at: photo.attachedAt,
+    }))
+  );
+
+  if (error) {
+    throw error;
+  }
 }
 
 export function MemoryProvider({ children }: { children: ReactNode }) {
@@ -159,23 +209,7 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       throw error;
     }
 
-    if (input.attachedPhotos.length) {
-      const { error: photoRefError } = await supabase.from("memory_photo_refs").insert(
-        input.attachedPhotos.map((photo) => ({
-          memory_id: data.id,
-          user_id: userId,
-          photo_id: photo.photoId,
-          source: photo.source,
-          path: photo.path,
-          content_hash: photo.contentHash ?? null,
-          attached_at: photo.attachedAt,
-        }))
-      );
-
-      if (photoRefError) {
-        throw photoRefError;
-      }
-    }
+    await insertPhotoRefs(data.id, userId, input.attachedPhotos);
 
     const memory = await getMemoryById(data.id);
     if (!memory) {
@@ -183,6 +217,73 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     }
 
     return memory;
+  };
+
+  const updateMemory = async (
+    id: string,
+    input: Omit<CreateMemoryInput, "attachedPhotos">
+  ) => {
+    const supabase = getSupabaseClient();
+    const userId = await getUserIdOrThrow();
+    const { error } = await supabase
+      .from("memories")
+      .update({
+        date: input.date.slice(0, 10),
+        prompt: input.prompt,
+        text: input.text,
+        tags: input.tags,
+      })
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) {
+      throw error;
+    }
+
+    const memory = await getMemoryById(id);
+    if (!memory) {
+      throw new Error("Memory was updated but could not be reloaded.");
+    }
+
+    return memory;
+  };
+
+  const updateMemoryPhotoRefs = async (
+    memoryId: string,
+    attachedPhotos: Memory["attachedPhotos"]
+  ) => {
+    const supabase = getSupabaseClient();
+    const userId = await getUserIdOrThrow();
+
+    const { error: deleteError } = await supabase
+      .from("memory_photo_refs")
+      .delete()
+      .eq("user_id", userId)
+      .eq("memory_id", memoryId);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    if (!attachedPhotos.length) {
+      return;
+    }
+
+    await insertPhotoRefs(memoryId, userId, attachedPhotos);
+  };
+
+  const deleteMemory = async (id: string) => {
+    const supabase = getSupabaseClient();
+    const userId = await getUserIdOrThrow();
+    const { error } = await supabase
+      .from("memories")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId);
+
+    if (error) {
+      throw error;
+    }
   };
 
   const searchMemories = async (query: string) => {
@@ -199,7 +300,12 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
         memory.prompt,
         memory.text,
         memory.tags.join(" "),
-        memory.attachedPhotos.map((photo) => `${photo.photoId} ${photo.path}`).join(" "),
+        memory.attachedPhotos
+          .map(
+            (photo) =>
+              `${photo.photoId} ${photo.path} ${photo.filename ?? ""} ${photo.syncStatus}`
+          )
+          .join(" "),
       ];
 
       return searchableParts.some((part) =>
@@ -219,6 +325,9 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       getMemories,
       getMemoryById,
       createMemory,
+      updateMemory,
+      deleteMemory,
+      updateMemoryPhotoRefs,
       searchMemories,
       getDailyPrompt,
     }),

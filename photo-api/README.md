@@ -106,6 +106,12 @@ Cancel placeholder:
 curl -X POST -H "Authorization: Bearer change-me" http://localhost:5055/index/cancel
 ```
 
+Match a likely NAS photo by metadata:
+
+```powershell
+curl -H "Authorization: Bearer change-me" "http://localhost:5055/photos/match?filename=IMG_4432.jpg&takenAt=2026-06-17T14:22:00.000Z&fileSize=3442231&width=4032&height=3024"
+```
+
 ## Built-in scheduled scans
 
 The server can run one scan per day without Task Scheduler.
