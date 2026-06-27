@@ -100,6 +100,11 @@ For a specific attached phone:
 npm run android:device
 ```
 
+These repo scripts now do two Windows-specific setup steps automatically before they call Expo:
+
+- set `JAVA_HOME` from Android Studio's bundled JDK when possible
+- use a repo-local Gradle cache at `.gradle-local` to avoid user-profile cache and lock issues
+
 Expo Go is no longer the main validation path for:
 
 - `expo-notifications`
@@ -175,6 +180,21 @@ Later phases should add fuller real-device reminder timing checks, but Phase 7 a
 
 ## Troubleshooting
 
+- `JAVA_HOME` is not set and Gradle cannot find Java
+  On this machine, Android Studio already includes a valid JDK at `C:\Program Files\Android\Android Studio\jbr`.
+  Temporary fix for the current PowerShell session:
+  ```powershell
+  $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
+  $env:Path = "$env:JAVA_HOME\bin;" + $env:Path
+  ```
+  Then rerun `npm run android` or `npm run android:device`.
+- Gradle fails under `C:\Users\...\ .gradle` with lock or access-denied errors
+  The repo's Android scripts now set `GRADLE_USER_HOME` to `C:\Users\wolf-ai\AppData\Local\tc-gradle` automatically so Gradle stays out of the user-profile default cache and out of the repo tree. If you run Gradle manually, set it yourself first:
+  ```powershell
+  $env:GRADLE_USER_HOME='C:\Users\wolf-ai\AppData\Local\tc-gradle'
+  ```
+- Gradle fails moving transform or data binding workspaces inside `.gradle-local`
+  The repo's Android script now forces a more conservative Windows-friendly Gradle mode by disabling the daemon, build cache, parallel execution, and file-system watching for `npm run android` and `npm run android:device`.
 - Metro opens but the phone does not connect
   Confirm both devices are on the same network or use USB debugging first.
 - App cannot reach the Photo API

@@ -8,6 +8,7 @@ dist/
 photo-api/dist/
 
 android/.gradle/
+.gradle-local/
 android/app/build/
 android/build/
 android/local.properties
