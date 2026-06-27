@@ -13,6 +13,7 @@
       "typedRoutes": true
     },
     "plugins": [
+      "expo-dev-client",
       [
         "expo-image-picker",
         {
@@ -27,6 +28,9 @@
         }
       ]
     ],
+    "ios": {
+      "bundleIdentifier": "com.anonymous.tinychapters"
+    },
     "android": {
       "package": "com.anonymous.tinychapters"
     }

@@ -24,6 +24,7 @@ import {
   getNotificationPermissionStatus,
   getReminderDescription,
   getReminderSettings,
+  isReminderNotificationsSupported,
 } from "@/services/notifications/reminderService";
 import {
   getAttachedPhotoDisplayName,
@@ -457,7 +458,9 @@ export default function TodayScreen() {
           <Text style={styles.date}>{formattedDate}</Text>
         </View>
 
-        {reminderSettings?.enabled && reminderPermission === "granted" ? (
+        {isReminderNotificationsSupported() &&
+        reminderSettings?.enabled &&
+        reminderPermission === "granted" ? (
           <View style={styles.reminderHintCard}>
             <Text style={styles.reminderHintTitle}>Memory reminders are on</Text>
             <Text style={styles.reminderHintText}>

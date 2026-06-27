@@ -2,16 +2,18 @@ import { useEffect, useRef } from "react";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import * as Notifications from "expo-notifications";
 
 import { AuthScreen } from "@/components/AuthScreen";
 import { AuthProvider, useAuth } from "@/services/auth/AuthProvider";
 import { MemoryProvider } from "@/services/memoryService";
 import {
+  addReminderResponseListener,
   configureReminderNotifications,
+  isReminderNotificationsSupported,
   rescheduleMemoryReminders,
 } from "@/services/notifications/reminderService";
 import { PhotoAttachmentProvider } from "@/services/photo/photoAttachmentContext";
+import { runStartupDiagnosticsIfDeveloperMode } from "@/services/diagnostics/diagnosticsService";
 import { attemptNasRelinkForAllMemories } from "@/services/photo/photoRelinkService";
 import { getActivePhotoSourceMode } from "@/services/photo/photoService";
 import { theme } from "@/theme/theme";
@@ -32,12 +34,21 @@ function RootNavigator() {
   const router = useRouter();
   const { isConfigured, isLoading, user } = useAuth();
   const hasStartedRelinkRef = useRef(false);
-  const handledNotificationResponseIdRef = useRef<string | null>(null);
-  const lastNotificationResponse = Notifications.useLastNotificationResponse();
+  const hasRunStartupDiagnosticsRef = useRef(false);
 
   useEffect(() => {
     void configureReminderNotifications();
   }, []);
+
+  useEffect(() => {
+    if (isLoading || !isConfigured || !user || hasRunStartupDiagnosticsRef.current) {
+      return;
+    }
+
+    hasRunStartupDiagnosticsRef.current = true;
+
+    void runStartupDiagnosticsIfDeveloperMode();
+  }, [isConfigured, isLoading, user]);
 
   useEffect(() => {
     if (isLoading || !isConfigured || !user || hasStartedRelinkRef.current) {
@@ -76,25 +87,24 @@ function RootNavigator() {
   }, [isConfigured, isLoading, user]);
 
   useEffect(() => {
-    if (!lastNotificationResponse) {
+    if (!isReminderNotificationsSupported()) {
       return;
     }
 
-    const requestId = lastNotificationResponse.notification.request.identifier;
-    if (handledNotificationResponseIdRef.current === requestId) {
-      return;
-    }
+    let unsubscribe: (() => void) | undefined;
 
-    handledNotificationResponseIdRef.current = requestId;
+    void addReminderResponseListener((data) => {
+      if (data?.kind === "memory_reminder") {
+        router.replace("/(tabs)" as never);
+      }
+    }).then((cleanup) => {
+      unsubscribe = cleanup;
+    });
 
-    const data = lastNotificationResponse.notification.request.content.data as
-      | { kind?: string; route?: string }
-      | undefined;
-
-    if (data?.kind === "memory_reminder") {
-      router.replace("/(tabs)" as never);
-    }
-  }, [lastNotificationResponse, router]);
+    return () => {
+      unsubscribe?.();
+    };
+  }, [router]);
 
   if (isLoading) {
     return (

@@ -2,7 +2,19 @@
 
 Tiny Chapters is a private mobile memory capsule for saving small daily family moments. The app is Android-first, built with Expo Router and TypeScript, and is being structured so the storage layer can evolve without forcing major screen rewrites.
 
-## Phase 6 status
+## Project Context Docs
+
+Future AI coding agents and maintainers should read these first:
+
+- [docs/AI_CONTEXT.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\AI_CONTEXT.md)
+- [docs/ARCHITECTURE.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\ARCHITECTURE.md)
+- [docs/ROADMAP.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\ROADMAP.md)
+- [docs/DEVELOPMENT_SETUP.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\DEVELOPMENT_SETUP.md)
+- [docs/IOS_READINESS.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\IOS_READINESS.md)
+
+These files are the canonical startup context and should be updated after each completed phase or meaningful architecture, data model, or roadmap change.
+
+## Phase 7 status
 
 Current state:
 - Expo mobile shell with tab navigation
@@ -14,13 +26,50 @@ Current state:
 - Timeline and Search cards open a full memory detail route
 - Existing memories can add or remove photo references without uploading photos to Supabase
 - Local reminder scheduling with `expo-notifications` and AsyncStorage-backed settings
+- Hidden Developer Mode with a diagnostics screen for Supabase, NAS, relink, notification, and environment troubleshooting
+- Installed Expo Development Build workflow for real device testing
+- Developer-only startup environment banner and startup diagnostics
 - Today, Timeline, Search, and Settings screens working against service abstractions
 - Native Android project available for emulator/device work when needed
 
 Not implemented yet:
+- Full iOS support or TestFlight readiness
 - AI cleanup
 - Export flow
 - Device photo library browsing as a primary archive source
+
+## Developer Quick Start
+
+Typical daily workflow:
+
+1. Start the Photo API.
+2. Start Metro.
+3. Launch the installed Development Build.
+4. Develop.
+5. Let hot reload update the phone.
+6. Test on device.
+7. Commit changes.
+
+Quick commands:
+
+```powershell
+npm run photo-api:dev
+npm run dev
+```
+
+First install or after native config changes:
+
+```powershell
+npm run android
+```
+
+For a physical device target:
+
+```powershell
+npm run android:device
+```
+
+More complete setup and troubleshooting live in [docs/DEVELOPMENT_SETUP.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\DEVELOPMENT_SETUP.md).
 
 ## How to run
 
@@ -45,7 +94,7 @@ You can copy the starter values from [.env.example](C:\Users\wolf-ai\Workspace\t
 Start Metro:
 
 ```powershell
-npm start
+npm run dev
 ```
 
 Run Android:
@@ -57,7 +106,7 @@ npm run android
 If Metro gets stuck on stale cache data:
 
 ```powershell
-npx expo start -c
+npm run start:clear
 ```
 
 ## Architecture summary
@@ -71,6 +120,7 @@ npx expo start -c
 - `app/photo-picker.tsx` provides the dedicated NAS selection flow for durable photo refs, with paged date, search, and folder modes
 - `app/memory/[id].tsx` handles memory detail, edit, delete, and attachment management
 - `src/services/notifications/reminderService.ts` owns local reminder settings, permission handling, and schedule management
+- `src/services/diagnostics/diagnosticsService.ts` centralizes developer-only diagnostics, safe masking, and recent diagnostic event logging
 - `src/lib/supabase.ts` initializes the Supabase client with Expo env vars and SecureStore-backed auth persistence
 - `src/types/` defines domain models for memories and photos
 
@@ -81,6 +131,13 @@ Reminder settings are device-local for now:
 - Tiny Chapters stores reminder cadence, time, and prompt style in AsyncStorage
 - notification permissions stay on-device
 - no reminder settings are written to Supabase yet
+
+Developer diagnostics are also device-local:
+
+- tap the app version row in Settings 7 times to enable Developer Mode
+- diagnostics events keep only the most recent 50 entries
+- secrets such as API keys and tokens are intentionally hidden or masked
+- a developer-only startup banner shows environment, photo source, Photo API URL, Supabase URL, runtime, and platform without showing secrets
 
 ## Supabase setup
 
@@ -218,6 +275,7 @@ Notes:
 - On a physical Android device, `localhost` points to the phone itself, not your computer.
 - Use your computer or NAS service's LAN IP address for real device testing.
 - On Android emulator, special host mappings may be needed depending on where the API runs.
+- Future Tailscale and cloud changes should switch only `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL`, not multiple code paths.
 
 ## Local Photo API service
 
@@ -301,6 +359,35 @@ Android notes:
 - local notifications are most reliable in a development build or installed app, not Expo Go
 - if permission is denied, Android system settings may need to be updated manually
 - reminder settings are device-local and do not sync through Supabase yet
+
+## Developer Mode
+
+Tiny Chapters now includes a hidden Developer Mode for development-time troubleshooting.
+
+How to enable it:
+
+1. Open Settings.
+2. Scroll near the bottom.
+3. Tap the `App Version` row 7 times.
+4. A new `Developer Mode` section will appear with `Open Diagnostics`.
+
+Diagnostics currently cover:
+
+- app environment details
+- safe Supabase connection checks
+- NAS Photo API `/health` and `/status`
+- photo relink retry and durability counts
+- notification status and test reminder actions
+- recent diagnostics events
+
+Secrets intentionally stay hidden:
+
+- Supabase anon key
+- NAS Photo API key
+- bearer tokens
+- passwords
+
+This exists so we can troubleshoot the app before a later beta-readiness phase where full install-on-phone testing becomes the main focus.
 
 Future reminder direction:
 

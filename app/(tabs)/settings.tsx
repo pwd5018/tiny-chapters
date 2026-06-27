@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,8 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
+import Constants from "expo-constants";
 
 import { TimePickerField } from "@/components/TimePickerField";
 import {
@@ -16,22 +19,25 @@ import {
   getReminderSettings,
   getNextReminderDate,
   getNotificationPermissionStatus,
+  isReminderNotificationsSupported,
   requestNotificationPermission,
   rescheduleMemoryReminders,
   saveReminderSettings,
   sendTestMemoryReminder,
 } from "@/services/notifications/reminderService";
 import {
+  disableDeveloperMode,
+  enableDeveloperMode,
+  getPhotoDurabilityCounts,
+  isDeveloperModeEnabled,
+  runRelinkRetry,
+  testNasStatus,
+} from "@/services/diagnostics/diagnosticsService";
+import {
   getActivePhotoSourceMode,
   getNasPhotoApiBaseUrl,
   getNasPhotoApiKeyConfigured,
-  testPhotoConnection,
 } from "@/services/photo/photoService";
-import {
-  attemptNasRelinkForAllMemories,
-  getPhotoDurabilitySummary,
-  type PhotoDurabilitySummary,
-} from "@/services/photo/photoRelinkService";
 import { useAuth } from "@/services/auth/AuthProvider";
 import { theme } from "@/theme/theme";
 import type {
@@ -89,10 +95,15 @@ function formatNextReminder(timestamp: number | null) {
 }
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { isConfigured, session, signOut, user } = useAuth();
   const [connectionMessage, setConnectionMessage] = useState("");
   const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [durabilitySummary, setDurabilitySummary] = useState<PhotoDurabilitySummary | null>(null);
+  const [durabilitySummary, setDurabilitySummary] = useState<{
+    pendingNasMatches: number;
+    linkedNasPhotos: number;
+    missingPhotos: number;
+  } | null>(null);
   const [isLoadingDurability, setIsLoadingDurability] = useState(true);
   const [relinkMessage, setRelinkMessage] = useState("");
   const [isRetryingRelink, setIsRetryingRelink] = useState(false);
@@ -104,15 +115,19 @@ export default function SettingsScreen() {
   const [isSavingReminderSettings, setIsSavingReminderSettings] = useState(false);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
+  const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
+  const [developerTapCount, setDeveloperTapCount] = useState(0);
+  const notificationsSupported = isReminderNotificationsSupported();
 
   const activePhotoSourceMode = getActivePhotoSourceMode();
   const nasBaseUrl = getNasPhotoApiBaseUrl();
+  const appVersion = Constants.expoConfig?.version ?? "Unknown";
 
   const loadDurabilitySummary = useCallback(async () => {
     setIsLoadingDurability(true);
 
     try {
-      const nextSummary = await getPhotoDurabilitySummary();
+      const nextSummary = await getPhotoDurabilityCounts();
       setDurabilitySummary(nextSummary);
     } catch {
       setDurabilitySummary(null);
@@ -125,19 +140,37 @@ export default function SettingsScreen() {
     setIsLoadingReminderSettings(true);
 
     try {
-      const [settings, status] = await Promise.all([
-        getReminderSettings(),
-        getNotificationPermissionStatus(),
-      ]);
-      const nextReminder = await getNextReminderDate(settings);
-
+      const settings = await getReminderSettings();
       setReminderSettings(settings);
-      setPermissionStatus(status);
-      setNextReminderTimestamp(nextReminder);
-    } catch {
-      setReminderSettings(null);
+
+      try {
+        const status = await getNotificationPermissionStatus();
+        setPermissionStatus(status);
+      } catch {
+        setPermissionStatus("undetermined");
+      }
+
+      try {
+        const nextReminder = await getNextReminderDate(settings);
+        setNextReminderTimestamp(nextReminder);
+      } catch {
+        setNextReminderTimestamp(null);
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.warn("[tiny-chapters] Reminder settings load failed", error);
+      }
+
+      setReminderSettings({
+        enabled: false,
+        cadence: "daily",
+        time: "20:00",
+        promptStyle: "simple",
+        lastUpdatedAt: new Date(0).toISOString(),
+      });
       setPermissionStatus("undetermined");
       setNextReminderTimestamp(null);
+      setReminderMessage("Reminder settings could not be read cleanly, so Tiny Chapters fell back to defaults.");
     } finally {
       setIsLoadingReminderSettings(false);
     }
@@ -145,7 +178,11 @@ export default function SettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void Promise.all([loadDurabilitySummary(), loadReminderState()]);
+      void Promise.all([
+        loadDurabilitySummary(),
+        loadReminderState(),
+        isDeveloperModeEnabled().then(setDeveloperModeEnabled),
+      ]);
     }, [loadDurabilitySummary, loadReminderState])
   );
 
@@ -154,7 +191,7 @@ export default function SettingsScreen() {
     setRelinkMessage("");
 
     try {
-      const summary = await attemptNasRelinkForAllMemories();
+      const summary = await runRelinkRetry();
       await loadDurabilitySummary();
       setRelinkMessage(
         `Matched: ${summary.matched}. Still pending: ${summary.stillPending}. Errors: ${summary.errors}.`
@@ -169,20 +206,16 @@ export default function SettingsScreen() {
   };
 
   const handleTestPhotoConnection = async () => {
-    const today = new Date().toISOString().slice(0, 10);
     setIsTestingConnection(true);
     setConnectionMessage("");
 
     try {
-      const result = await testPhotoConnection(today);
+      const result = await testNasStatus();
       if (activePhotoSourceMode === "nas") {
         const details = [
           result.message,
-          result.healthOk ? "API reachable: yes" : "API reachable: no",
+          result.ok ? "API reachable: yes" : "API reachable: no",
           result.authValid ? "Auth valid: yes" : "Auth valid: no",
-          typeof result.uptimeSeconds === "number"
-            ? `Server uptime: ${result.uptimeSeconds} second(s)`
-            : null,
           typeof result.schedulerEnabled === "boolean"
             ? `Scheduler enabled: ${result.schedulerEnabled ? "yes" : "no"}`
             : null,
@@ -220,7 +253,30 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleDeveloperVersionTap = async () => {
+    if (developerModeEnabled) {
+      return;
+    }
+
+    const nextCount = developerTapCount + 1;
+    setDeveloperTapCount(nextCount);
+
+    if (nextCount >= 7) {
+      await enableDeveloperMode();
+      setDeveloperModeEnabled(true);
+      setDeveloperTapCount(0);
+      setConnectionMessage("Developer Mode enabled. Diagnostics are now available below.");
+    }
+  };
+
   const handlePermissionRequest = async () => {
+    if (!notificationsSupported) {
+      setReminderMessage(
+        "Expo Go on Android does not support this notification flow. Use your development build to test reminders."
+      );
+      return;
+    }
+
     setIsRequestingPermission(true);
     setReminderMessage("");
 
@@ -245,6 +301,13 @@ export default function SettingsScreen() {
 
   const handleReminderSave = async () => {
     if (!reminderSettings) {
+      return;
+    }
+
+    if (!notificationsSupported) {
+      setReminderMessage(
+        "Reminder settings can only be tested in a development build on Android because Expo Go does not support expo-notifications here."
+      );
       return;
     }
 
@@ -301,6 +364,13 @@ export default function SettingsScreen() {
 
   const handleTestNotification = async () => {
     if (!reminderSettings) {
+      return;
+    }
+
+    if (!notificationsSupported) {
+      setReminderMessage(
+        "Test reminders require a development build on Android. Expo Go will not deliver expo-notifications here."
+      );
       return;
     }
 
@@ -425,17 +495,57 @@ export default function SettingsScreen() {
         {relinkMessage ? <Text style={styles.connectionMessage}>{relinkMessage}</Text> : null}
       </View>
 
+      {developerModeEnabled ? (
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.rowCopy}>
+              <Text style={styles.rowTitle}>Developer Mode</Text>
+              <Text style={styles.rowValue}>
+                Hidden diagnostics are enabled on this device.
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => router.push("/developer/diagnostics" as never)}
+          >
+            <Text style={styles.secondaryButtonText}>Open Diagnostics</Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => {
+              void (async () => {
+                await disableDeveloperMode();
+                setDeveloperModeEnabled(false);
+                setConnectionMessage("Developer Mode disabled.");
+              })();
+            }}
+          >
+            <Text style={styles.secondaryButtonText}>Disable Developer Mode</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <View style={styles.reminderCard}>
         <Text style={styles.reminderTitle}>Memory reminders</Text>
         <Text style={styles.reminderCopy}>
           Configure local reminder nudges on this device only. Tiny Chapters keeps these settings in local storage for now, not Supabase.
         </Text>
+        {!notificationsSupported ? (
+          <Text style={styles.permissionWarning}>
+            Expo Go on Android does not support this reminder feature. Use your development build if you want to test notification permissions and reminder delivery.
+          </Text>
+        ) : null}
 
-        {isLoadingReminderSettings || !reminderSettings ? (
+        {isLoadingReminderSettings ? (
           <View style={styles.inlineLoadingRow}>
             <ActivityIndicator color={theme.colors.accent} />
             <Text style={styles.reminderMeta}>Loading reminder settings...</Text>
           </View>
+        ) : !reminderSettings ? (
+          <Text style={styles.reminderMeta}>
+            Reminder settings are unavailable right now.
+          </Text>
         ) : (
           <>
             <View style={styles.toggleRow}>
@@ -636,6 +746,22 @@ export default function SettingsScreen() {
 
         {reminderMessage ? <Text style={styles.connectionMessage}>{reminderMessage}</Text> : null}
       </View>
+
+      <Pressable style={styles.card} onPress={() => void handleDeveloperVersionTap()}>
+        <View style={styles.row}>
+          <View style={styles.rowCopy}>
+            <Text style={styles.rowTitle}>App Version</Text>
+            <Text style={styles.rowValue}>
+              Version {appVersion} on {Platform.OS}
+            </Text>
+            {!developerModeEnabled && developerTapCount > 0 ? (
+              <Text style={styles.rowValue}>
+                {7 - developerTapCount} more tap{7 - developerTapCount === 1 ? "" : "s"} to unlock Developer Mode
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      </Pressable>
 
       <Pressable style={styles.signOutButton} onPress={() => void signOut()}>
         <Text style={styles.signOutText}>Sign Out</Text>

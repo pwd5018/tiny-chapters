@@ -1,6 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import type {
+  NotificationPermissionsStatus,
+  NotificationTriggerInput,
+  SchedulableNotificationTriggerInput,
+  SchedulableTriggerInputTypes,
+} from "expo-notifications";
 
 import type {
   ReminderCadence,
@@ -8,6 +13,7 @@ import type {
   ReminderPromptStyle,
   ReminderSettings,
 } from "@/types/reminder";
+import { isExpoGoRuntime } from "@/config/appConfig";
 
 const REMINDER_SETTINGS_KEY = "tiny_chapters.reminder_settings";
 const REMINDER_IDS_KEY = "tiny_chapters.reminder_notification_ids";
@@ -27,28 +33,54 @@ type ReminderMessage = {
   body: string;
 };
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+type ExpoNotificationsModule = typeof import("expo-notifications");
+
+let notificationsModulePromise: Promise<ExpoNotificationsModule | null> | null = null;
+let notificationHandlerConfigured = false;
+
+export function isReminderNotificationsSupported() {
+  return !isExpoGoRuntime();
+}
+
+async function getNotificationsModule(): Promise<ExpoNotificationsModule | null> {
+  if (!isReminderNotificationsSupported()) {
+    return null;
+  }
+
+  if (!notificationsModulePromise) {
+    notificationsModulePromise = import("expo-notifications")
+      .then(async (Notifications) => {
+        if (!notificationHandlerConfigured) {
+          Notifications.setNotificationHandler({
+            handleNotification: async () => ({
+              shouldPlaySound: false,
+              shouldSetBadge: false,
+              shouldShowBanner: true,
+              shouldShowList: true,
+            }),
+          });
+          notificationHandlerConfigured = true;
+        }
+
+        return Notifications;
+      })
+      .catch(() => null);
+  }
+
+  return notificationsModulePromise;
+}
 
 function mapPermissionStatus(
-  status: Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>
+  status: NotificationPermissionsStatus
 ): ReminderPermissionStatus {
-  const statusRecord = status as {
-    granted?: boolean;
-    canAskAgain?: boolean;
-  };
+  const granted = "granted" in status ? Boolean(status.granted) : false;
+  const canAskAgain = "canAskAgain" in status ? Boolean(status.canAskAgain) : false;
 
-  if (statusRecord.granted) {
+  if (granted) {
     return "granted";
   }
 
-  return statusRecord.canAskAgain ? "undetermined" : "denied";
+  return canAskAgain ? "undetermined" : "denied";
 }
 
 function normalizeSettings(value: Partial<ReminderSettings> | null | undefined): ReminderSettings {
@@ -126,27 +158,30 @@ function getScheduleDays(settings: ReminderSettings) {
   return [];
 }
 
-function buildDailyTrigger(settings: ReminderSettings) {
+function buildDailyTrigger(settings: ReminderSettings): SchedulableNotificationTriggerInput {
   const [hour, minute] = settings.time.split(":").map(Number);
 
   return {
-    type: Notifications.SchedulableTriggerInputTypes.DAILY,
+    type: "daily" as SchedulableTriggerInputTypes.DAILY,
     hour,
     minute,
     channelId: REMINDER_CHANNEL_ID,
-  } as const;
+  };
 }
 
-function buildWeeklyTrigger(day: number, settings: ReminderSettings) {
+function buildWeeklyTrigger(
+  day: number,
+  settings: ReminderSettings
+): SchedulableNotificationTriggerInput {
   const [hour, minute] = settings.time.split(":").map(Number);
 
   return {
-    type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+    type: "weekly" as SchedulableTriggerInputTypes.WEEKLY,
     weekday: day,
     hour,
     minute,
     channelId: REMINDER_CHANNEL_ID,
-  } as const;
+  };
 }
 
 async function saveScheduledReminderIds(ids: string[]) {
@@ -167,7 +202,16 @@ async function getScheduledReminderIds() {
   }
 }
 
+export async function getScheduledReminderCount() {
+  return (await getScheduledReminderIds()).length;
+}
+
 export async function configureReminderNotifications() {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) {
+    return;
+  }
+
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync(REMINDER_CHANNEL_ID, {
       name: "Memory reminders",
@@ -204,16 +248,32 @@ export async function saveReminderSettings(settings: ReminderSettings) {
 }
 
 export async function getNotificationPermissionStatus(): Promise<ReminderPermissionStatus> {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) {
+    return "denied";
+  }
+
   const status = await Notifications.getPermissionsAsync();
   return mapPermissionStatus(status);
 }
 
 export async function requestNotificationPermission(): Promise<ReminderPermissionStatus> {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) {
+    return "denied";
+  }
+
   const status = await Notifications.requestPermissionsAsync();
   return mapPermissionStatus(status);
 }
 
 export async function cancelMemoryReminders() {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) {
+    await saveScheduledReminderIds([]);
+    return;
+  }
+
   const scheduledIds = await getScheduledReminderIds();
 
   await Promise.all(
@@ -230,6 +290,11 @@ export async function cancelMemoryReminders() {
 }
 
 export async function scheduleMemoryReminder(settings: ReminderSettings) {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) {
+    return [];
+  }
+
   await configureReminderNotifications();
   const normalizedSettings = normalizeSettings(settings);
 
@@ -290,6 +355,11 @@ export async function rescheduleMemoryReminders() {
 }
 
 export async function sendTestMemoryReminder(promptStyle: ReminderPromptStyle) {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) {
+    return null;
+  }
+
   await configureReminderNotifications();
   const permissionStatus = await getNotificationPermissionStatus();
   if (permissionStatus !== "granted") {
@@ -307,14 +377,19 @@ export async function sendTestMemoryReminder(promptStyle: ReminderPromptStyle) {
       },
     },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      type: "date",
       date: new Date(Date.now() + 5000),
       channelId: REMINDER_CHANNEL_ID,
-    },
+    } as NotificationTriggerInput,
   });
 }
 
 export async function getNextReminderDate(settings?: ReminderSettings) {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) {
+    return null;
+  }
+
   const activeSettings = settings ?? (await getReminderSettings());
   const normalizedSettings = normalizeSettings(activeSettings);
 
@@ -349,4 +424,34 @@ export function getReminderDescription(settings: ReminderSettings) {
     default:
       return `You'll be reminded every day at ${timeLabel}.`;
   }
+}
+
+export async function addReminderResponseListener(
+  onReminderTap: (data: { kind?: string; route?: string } | undefined) => void
+) {
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) {
+    return () => {};
+  }
+
+  const lastResponse = await Notifications.getLastNotificationResponseAsync();
+  if (lastResponse) {
+    onReminderTap(
+      lastResponse.notification.request.content.data as
+        | { kind?: string; route?: string }
+        | undefined
+    );
+  }
+
+  const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+    onReminderTap(
+      response.notification.request.content.data as
+        | { kind?: string; route?: string }
+        | undefined
+    );
+  });
+
+  return () => {
+    subscription.remove();
+  };
 }
