@@ -36,11 +36,11 @@ Future Codex sessions should check this file first when planning work. Mark phas
   Hidden Developer Mode and Diagnostics screen.
 - Phase 7
   Development Client and Daily Driver workflow with `expo-dev-client`, centralized environment config, developer startup diagnostics, and a documented Android-first real-device loop.
+- Phase 8
+  Cross-platform readiness and iOS preparation with centralized permission helpers, iOS app-config strings, platform-aware diagnostics, and an expanded future iPhone checklist without attempting full release work.
 
-## Remaining milestones after Phase 7
+## Remaining milestones after Phase 8
 
-- Phase 8: Cross-Platform Readiness / iOS Preparation
-  Generate the iOS project, validate permissions and reminders on real hardware, close platform gaps from `docs/IOS_READINESS.md`, and prepare for later TestFlight work.
 - Phase 9: On This Day memories
   Same calendar date in prior years, memory resurfacing, and NAS thumbnails when reachable.
 - Phase 10: Guided AI Memory Questions
@@ -64,7 +64,7 @@ Future Codex sessions should check this file first when planning work. Mark phas
 - Phase 19: Optional Home Agent
   Power-user NAS/private archive support with possible cloud relay later.
 - Phase 20: Beta Readiness / Install-on-Phone Validation
-  Broader beta-style validation after the dev-build workflow is stable: test permissions, notifications, NAS/Tailscale flows, offline/failure behavior, install polish, and performance.
+  Broader beta-style validation after Android and first-pass iPhone dev-build workflows are stable: test permissions, notifications, NAS/Tailscale flows, offline/failure behavior, install polish, and performance.
 - Phase 21: Polish and Release Prep
   Onboarding, app icon/splash, empty states, error messages, and later store readiness.
 

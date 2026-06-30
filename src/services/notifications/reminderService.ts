@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import type {
-  NotificationPermissionsStatus,
   NotificationTriggerInput,
   SchedulableNotificationTriggerInput,
   SchedulableTriggerInputTypes,
@@ -9,11 +8,14 @@ import type {
 
 import type {
   ReminderCadence,
-  ReminderPermissionStatus,
   ReminderPromptStyle,
   ReminderSettings,
 } from "@/types/reminder";
 import { isExpoGoRuntime } from "@/config/appConfig";
+import {
+  getNotificationPermissionStatus,
+  requestNotificationPermission,
+} from "@/services/permissions/permissionService";
 
 const REMINDER_SETTINGS_KEY = "tiny_chapters.reminder_settings";
 const REMINDER_IDS_KEY = "tiny_chapters.reminder_notification_ids";
@@ -68,19 +70,6 @@ async function getNotificationsModule(): Promise<ExpoNotificationsModule | null>
   }
 
   return notificationsModulePromise;
-}
-
-function mapPermissionStatus(
-  status: NotificationPermissionsStatus
-): ReminderPermissionStatus {
-  const granted = "granted" in status ? Boolean(status.granted) : false;
-  const canAskAgain = "canAskAgain" in status ? Boolean(status.canAskAgain) : false;
-
-  if (granted) {
-    return "granted";
-  }
-
-  return canAskAgain ? "undetermined" : "denied";
 }
 
 function normalizeSettings(value: Partial<ReminderSettings> | null | undefined): ReminderSettings {
@@ -245,26 +234,6 @@ export async function saveReminderSettings(settings: ReminderSettings) {
       lastUpdatedAt: new Date().toISOString(),
     } satisfies ReminderSettings)
   );
-}
-
-export async function getNotificationPermissionStatus(): Promise<ReminderPermissionStatus> {
-  const Notifications = await getNotificationsModule();
-  if (!Notifications) {
-    return "denied";
-  }
-
-  const status = await Notifications.getPermissionsAsync();
-  return mapPermissionStatus(status);
-}
-
-export async function requestNotificationPermission(): Promise<ReminderPermissionStatus> {
-  const Notifications = await getNotificationsModule();
-  if (!Notifications) {
-    return "denied";
-  }
-
-  const status = await Notifications.requestPermissionsAsync();
-  return mapPermissionStatus(status);
 }
 
 export async function cancelMemoryReminders() {
@@ -455,3 +424,5 @@ export async function addReminderResponseListener(
     subscription.remove();
   };
 }
+
+export { getNotificationPermissionStatus, requestNotificationPermission };

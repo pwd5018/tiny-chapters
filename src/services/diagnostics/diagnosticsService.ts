@@ -10,7 +10,19 @@ import {
   supabaseUrl,
 } from "@/config/appConfig";
 import { getCurrentSession, getCurrentUser } from "@/services/auth/authService";
-import { getReminderSettings, getNotificationPermissionStatus, getNextReminderDate, getScheduledReminderCount, isReminderNotificationsSupported, sendTestMemoryReminder } from "@/services/notifications/reminderService";
+import {
+  getReminderSettings,
+  getNextReminderDate,
+  getScheduledReminderCount,
+  isReminderNotificationsSupported,
+  sendTestMemoryReminder,
+} from "@/services/notifications/reminderService";
+import {
+  getCameraPermissionStatus,
+  getMediaLibraryPermissionStatus,
+  getNotificationPermissionStatus,
+  type AppPermissionStatus,
+} from "@/services/permissions/permissionService";
 import { getPhotoDurabilitySummary, retryPendingNasMatches, type NasRelinkSummary } from "@/services/photo/photoRelinkService";
 import { getActivePhotoSourceMode } from "@/services/photo/photoService";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
@@ -89,6 +101,19 @@ export type NotificationDiagnostics = {
   scheduledNotificationCount: number;
 };
 
+export type IosReadinessDiagnostics = {
+  platform: string;
+  bundleIdentifier: string;
+  notificationPermissionStatus: string;
+  cameraPermissionStatus: AppPermissionStatus;
+  mediaLibraryPermissionStatus: AppPermissionStatus;
+  photoSourceMode: string;
+  photoApiUrl: string;
+  localhostWarning: string | null;
+  insecureHttpWarning: string | null;
+  localUriRiskNote: string;
+};
+
 export type StartupDiagnosticsSummary = {
   environment: string;
   runtime: string;
@@ -147,6 +172,31 @@ async function fetchWithTimeout(input: string, headers?: Record<string, string>)
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function getBundleIdentifier() {
+  return (
+    Constants.expoConfig?.ios?.bundleIdentifier ??
+    Constants.expoConfig?.android?.package ??
+    "Unavailable"
+  );
+}
+
+function parseUrlSafely(value: string) {
+  try {
+    return value ? new URL(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+function isLocalhostHostname(hostname: string) {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    hostname === "::1"
+  );
 }
 
 export async function isDeveloperModeEnabled() {
@@ -548,6 +598,39 @@ export async function getNotificationDiagnostics(): Promise<NotificationDiagnost
     promptStyle: settings.promptStyle,
     nextReminderTimestamp,
     scheduledNotificationCount,
+  };
+}
+
+export async function getIosReadinessDiagnostics(): Promise<IosReadinessDiagnostics> {
+  const parsedUrl = parseUrlSafely(nasPhotoApiBaseUrl);
+  const isIos = Platform.OS === "ios";
+  const photoSourceMode = getActivePhotoSourceMode();
+
+  const [notificationPermissionStatus, cameraPermissionStatus, mediaLibraryPermissionStatus] =
+    await Promise.all([
+      getNotificationPermissionStatus().catch(() => "undetermined"),
+      getCameraPermissionStatus().catch(() => "undetermined" as const),
+      getMediaLibraryPermissionStatus().catch(() => "undetermined" as const),
+    ]);
+
+  return {
+    platform: Platform.OS,
+    bundleIdentifier: getBundleIdentifier(),
+    notificationPermissionStatus,
+    cameraPermissionStatus,
+    mediaLibraryPermissionStatus,
+    photoSourceMode,
+    photoApiUrl: nasPhotoApiBaseUrl || "Not configured",
+    localhostWarning:
+      isIos && parsedUrl && isLocalhostHostname(parsedUrl.hostname)
+        ? "This Photo API URL points at localhost, which would refer to the iPhone itself."
+        : null,
+    insecureHttpWarning:
+      isIos && photoSourceMode === "nas" && parsedUrl?.protocol === "http:"
+        ? "NAS mode is using HTTP. Validate iPhone reachability first, then review HTTPS or trusted-network expectations later."
+        : null,
+    localUriRiskNote:
+      "Phone-local asset URIs are temporary, device-specific, and still need real iPhone validation for preview and relink behavior.",
   };
 }
 

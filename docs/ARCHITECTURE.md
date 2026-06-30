@@ -39,7 +39,7 @@ Why this changed:
 - `src/components/`
   Reusable UI such as `DatePickerField`, `TimePickerField`, memory cards, auth screen, and prompt cards.
 - `src/services/`
-  Service boundaries for auth, memories, photos, reminders, and diagnostics.
+  Service boundaries for auth, memories, photos, reminders, diagnostics, and permissions.
 - `src/types/`
   Domain models for memories, photos, and reminder settings.
 - `src/config/`
@@ -58,9 +58,11 @@ Why this changed:
 - `photoRelinkService`
   Owns pending NAS match queries, conservative metadata matching requests, relink retries, and durability summaries.
 - `reminderService`
-  Owns device-local reminder settings, notification permissions, schedule/cancel logic, and reminder descriptions.
+  Owns device-local reminder settings, schedule/cancel logic, Android notification-channel setup, and reminder descriptions.
+- `permissionService`
+  Centralizes notification, camera, and media-library permission status/request helpers so screens do not need direct Expo permission calls.
 - `diagnosticsService`
-  Owns Developer Mode state, masked environment snapshots, startup diagnostics, Supabase checks, Photo API checks, relink diagnostics, notification diagnostics, and diagnostics event logs.
+  Owns Developer Mode state, masked environment snapshots, startup diagnostics, Supabase checks, Photo API checks, relink diagnostics, notification diagnostics, iOS readiness diagnostics, and diagnostics event logs.
 
 Supplemental:
 
@@ -128,6 +130,7 @@ Practical meaning today:
 - Phone-attached or camera-captured refs are metadata-only local refs first.
 - Local refs try immediate relink and otherwise remain `pending_nas_match`.
 - Relink can later promote them to `linked_to_nas`.
+- `localUri` remains temporary and device-specific; future iPhone validation still needs to verify how those URIs behave across preview and relink flows.
 
 ## NAS Photo API
 
@@ -202,6 +205,10 @@ Operational behavior implemented now:
   Single source of truth for LAN, future Tailscale, or future cloud endpoint switching.
 
 All `EXPO_PUBLIC_*` values are bundled into the app. They are configuration, not secrets.
+
+Platform note:
+
+- `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL` must point to a URL the phone itself can reach. `localhost` only works from the same device, not from an iPhone talking to a Windows host.
 
 ## Failure behavior
 

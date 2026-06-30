@@ -1,6 +1,6 @@
 # Tiny Chapters Development Setup
 
-Phase 7 makes the installed Expo Development Build the primary daily workflow for Tiny Chapters. Expo Go is still useful for quick UI checks, but reminder testing, native permission prompts, and real-device debugging should happen in the development build.
+Phase 7 makes the installed Expo Development Build the primary daily workflow for Tiny Chapters. Phase 7.1 adds repo-level tooling so Metro stays on a fixed port and the Android rebuild path is one command instead of a handful of manual steps. Expo Go is still useful for quick UI checks, but reminder testing, native permission prompts, and real-device debugging should happen in the development build.
 
 ## Prerequisites
 
@@ -65,9 +65,11 @@ Photo source mode is still controlled by:
 
 ## Daily workflow
 
+Normal JS and TS work does not need a rebuild.
+
 1. Start the Photo API when testing NAS mode.
-2. Start Metro in dev-client mode.
-3. Launch the installed Development Build on the phone.
+2. Start Metro on port `8081`.
+3. Open the already-installed Tiny Chapters development build on the phone.
 4. Make code changes.
 5. Let hot reload update the device.
 6. Test on the physical phone.
@@ -76,7 +78,7 @@ Photo source mode is still controlled by:
 Recommended commands:
 
 ```powershell
-npm run photo-api:dev
+npm run photo-api
 npm run dev
 ```
 
@@ -86,24 +88,49 @@ If Metro cache gets stale:
 npm run start:clear
 ```
 
+If the app is already installed but needs to reconnect to Metro without a rebuild:
+
+```powershell
+npm run android:launch
+```
+
+If you want a preflight check of your local setup:
+
+```powershell
+npm run doctor
+```
+
 ## Building and installing the Development Build
 
-First-time or after native config changes:
+Use a rebuild when any native dependency, Android config, Expo plugin config, package-level native module, or generated native project setting changes.
+
+Recommended rebuild command:
+
+```powershell
+npm run rebuild
+```
+
+`npm run rebuild` will:
+
+- verify Java, `JAVA_HOME`, `adb`, and an authorized phone
+- ensure Metro is running on `8081`
+- start Metro in a new PowerShell window if it is not already running
+- build and install the Android development client
+- launch the installed app back to the correct Metro URL
+
+The older raw install commands still exist when you want the lower-level Expo behavior directly:
 
 ```powershell
 npm run android
-```
-
-For a specific attached phone:
-
-```powershell
 npm run android:device
 ```
 
 These repo scripts now do two Windows-specific setup steps automatically before they call Expo:
 
 - set `JAVA_HOME` from Android Studio's bundled JDK when possible
-- use a repo-local Gradle cache at `.gradle-local` to avoid user-profile cache and lock issues
+- use `C:\Users\wolf-ai\AppData\Local\tc-gradle` as `GRADLE_USER_HOME` to avoid the default user-profile cache and lock issues
+
+The repo now also fixes Metro to port `8081` for all dev-client flows. That matches the default Expo development-client expectation and avoids the confusing case where Metro falls back to `8082` while the installed app still looks for `8081`.
 
 Expo Go is no longer the main validation path for:
 
@@ -133,6 +160,32 @@ adb devices
 ```
 
 If `adb` is not on `PATH`, use Android Studio's Platform Tools path or add it to your shell profile.
+
+`npm run doctor` and the rebuild scripts will also look for `adb` inside the standard Android SDK Platform Tools folder under `%LOCALAPPDATA%\Android\Sdk`.
+
+## Metro host and LAN IP selection
+
+`npm run android:launch` and `npm run rebuild` launch the dev client with a URL shaped like:
+
+```text
+tinychapters://expo-development-client/?url=http://YOUR_LAN_IP:8081
+```
+
+The scripts choose the host in this order:
+
+1. `EXPO_DEV_SERVER_HOST` if you set it in your shell
+2. the first likely Wi-Fi or Ethernet IPv4 address that is up and not loopback
+
+The auto-detection tries to avoid loopback, disconnected adapters, and obvious virtual adapters.
+
+If you want to force a specific address for USB, Wi-Fi, Tailscale, or a multi-adapter machine:
+
+```powershell
+$env:EXPO_DEV_SERVER_HOST='192.168.1.50'
+npm run android:launch
+```
+
+Use USB debugging first if the phone and computer are not reliably reachable over Wi-Fi. The app still needs to reach the host machine on port `8081`.
 
 ## Photo API verification
 
@@ -180,6 +233,13 @@ Later phases should add fuller real-device reminder timing checks, but Phase 7 a
 
 ## Troubleshooting
 
+- Port `8081` is already occupied
+  Run `npm run doctor` first. If the port belongs to Metro, you can keep using it.
+  If the port belongs to some other process, the scripts will show the PID and process name instead of killing it automatically.
+  You can stop that process manually, or rerun the rebuild script with:
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File ./scripts/rebuild-android.ps1 -ForcePortKill
+  ```
 - `JAVA_HOME` is not set and Gradle cannot find Java
   On this machine, Android Studio already includes a valid JDK at `C:\Program Files\Android\Android Studio\jbr`.
   Temporary fix for the current PowerShell session:
@@ -197,12 +257,15 @@ Later phases should add fuller real-device reminder timing checks, but Phase 7 a
   The repo's Android script now forces a more conservative Windows-friendly Gradle mode by disabling the daemon, build cache, parallel execution, and file-system watching for `npm run android` and `npm run android:device`.
 - Metro opens but the phone does not connect
   Confirm both devices are on the same network or use USB debugging first.
+  Then run `npm run android:launch` so the installed dev client reconnects to the current `http://HOST:8081` URL.
+- Metro starts on the wrong port
+  Use the repo scripts instead of raw `expo start`. `npm run dev` and `npm run start:clear` now force `8081`.
 - App cannot reach the Photo API
   Use a LAN or Tailscale IP, not `localhost`. Also check Windows Firewall for port `5055`.
 - Notifications do not fire
   Make sure you are in the Development Build and Android permission is granted.
 - Dev build feels stale after native config changes
-  Re-run `npm run android` so the installed build includes the new native config.
+  Re-run `npm run rebuild` so the installed build includes the new native config and reconnects to the correct Metro URL.
 - Env updates do not appear
   Restart Metro with `npm run start:clear`.
 - Typecheck passes but the phone still behaves differently

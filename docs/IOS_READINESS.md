@@ -1,106 +1,162 @@
 # Tiny Chapters iOS Readiness
 
-This file is the checklist for future iPhone and TestFlight work. Phase 7 does not implement full iOS support. It documents what already looks portable, what is still Android-first, and what should be tested on a real iPhone later.
+This checklist reflects the repo after Phase 8. Tiny Chapters is being prepared for future iPhone support, but it is not fully validated or released on iOS yet. Android remains the primary daily-driver workflow.
 
-## Current status
+## Current readiness status
 
-Current compatibility status: partial.
+Overall status: partially prepared, not validated on real iPhone hardware.
 
-What is already in good shape:
+What is now in place:
 
-- Expo Router app structure is platform-neutral
-- Supabase client setup is cross-platform
-- `expo-image-picker` plugin is configured with camera and photo-library copy
-- `@react-native-community/datetimepicker` usage is already wrapped in shared components with iOS modal handling
-- reminder scheduling logic is mostly service-level and avoids screen-level Android branching
-- app scheme `tinychapters` exists in app config
-- Photo API base URL is centralized for future LAN, Tailscale, or cloud switching
+- `app.json` includes an iOS bundle identifier plus development-safe camera, photo library, photo-library-add, and local-network usage descriptions
+- permission handling is centralized in `src/services/permissions/permissionService.ts`
+- notification channel setup stays Android-only inside `src/services/notifications/reminderService.ts`
+- date and time pickers already live behind shared components with Android and iOS-specific behavior contained there
+- Developer Diagnostics now include an `iOS Readiness` section with bundle id, permission states, photo mode, Photo API URL, and iOS-specific NAS warnings
+- Photo API base URL remains centralized through `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL`
 
-What is not implemented yet:
+What is still not done:
 
-- no generated `ios/` native project in the repo right now
-- no iPhone device validation has been run in this phase
-- no APNs/TestFlight/release signing setup exists yet
-- no iOS-specific notification entitlement validation has been done
+- no generated `ios/` native project exists in the repo yet
+- no real iPhone validation has been run for camera, photo library, reminders, or NAS reachability
+- no TestFlight or release-signing work has started
+- no Apple Developer account is required yet for this phase
+- no managed icon/splash source assets are committed yet for future iOS sync
 
-## Dependency audit
+## Cross-platform pieces already in good shape
 
-Dependency status is based on the current Expo SDK 54 repo state.
+- Expo Router structure and navigation
+- Supabase auth and memory persistence
+- service-layer routing for memories, photos, reminders, diagnostics, and permissions
+- `expo-image-picker` usage for camera and library flows
+- `@react-native-community/datetimepicker` behind shared `DatePickerField` and `TimePickerField`
+- local reminder scheduling architecture
+- centralized Photo API URL switching for LAN, future Tailscale, or future cloud access
 
-| Package | Expo Go | Development Build | Android | Future iOS | Notes |
-| --- | --- | --- | --- | --- | --- |
-| `expo` / `react-native` / `expo-router` | Yes | Yes | Yes | Yes | Core app stack. |
-| `expo-dev-client` | No | Required | Yes | Yes | Needed for installed development builds. |
-| `expo-notifications` | Limited on Expo Go Android | Yes | Yes | Yes | Real testing should happen in dev build. iOS will need real-device prompt and APNs-path validation later. |
-| `expo-image-picker` | Yes for basic use | Yes | Yes | Yes | Already configured through plugin permission text. Limited-library behavior still needs iPhone testing. |
-| `@react-native-community/datetimepicker` | Yes | Yes | Yes | Yes | Already abstracted behind shared date/time field components. |
-| `expo-secure-store` | Yes | Yes | Yes | Yes | Used for Supabase auth persistence. |
-| `@react-native-async-storage/async-storage` | Yes | Yes | Yes | Yes | Used for reminder and developer-mode state. |
-| `expo-constants` | Yes | Yes | Yes | Yes | Used for runtime/environment labeling. |
-| `react-native-url-polyfill` | Yes | Yes | Yes | Yes | Supports Supabase networking assumptions. |
-| `expo-linking` | Yes | Yes | Yes | Yes | Present, but only the app scheme is actively used today. |
-| `expo-asset` / `expo-status-bar` / vector icons | Yes | Yes | Yes | Yes | No current platform blocker. |
+## App config audit
 
-Unused or not currently present:
+Current config findings:
 
-- `expo-media-library` is not currently installed.
-- `expo-file-system` is not currently installed.
-- background task packages are not currently installed.
-- share-sheet flows are not currently implemented.
+- `ios.bundleIdentifier`
+  Set to `com.anonymous.tinychapters`
+- `ios.infoPlist`
+  Now includes `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`, `NSPhotoLibraryAddUsageDescription`, and `NSLocalNetworkUsageDescription`
+- `expo-image-picker` plugin
+  Already configured with camera and photo-library wording
+- `expo-notifications` plugin
+  Present with Android default channel configuration; iOS behavior still needs real-device validation later
+- icon and splash source config
+  Not fully prepared yet because the repo does not currently include managed source assets for a future iOS prebuild sync
 
-## Android-specific assumptions found
+## Permission strings and behavior
 
-These are acceptable today but should stay behind service or component boundaries:
+Current iOS permission wording in config is intentionally development-safe:
 
-- `src/services/notifications/reminderService.ts`
-  Android notification channel creation is Android-only, which is correct and already isolated.
-- `src/components/DatePickerField.tsx`
-  Android uses inline picker events while iOS uses a modal spinner.
-- `src/components/TimePickerField.tsx`
-  Same pattern as date picker and already abstracted cleanly.
-- `app/(tabs)/index.tsx` and `src/components/AuthScreen.tsx`
-  `KeyboardAvoidingView` uses `Platform.OS === "ios"` behavior switching, which is fine.
+- Camera
+  Attach a fresh family moment to a memory during development testing
+- Photo library
+  Attach a phone photo as a temporary reference while the original stays outside Supabase
+- Photo library add
+  Save a captured photo to the library before referencing it from a memory during development testing
+- Local network
+  Reach a local Photo API on the home network for NAS photo references during development testing
 
-No platform checks currently need to be pushed further down than they already are.
+Notes:
 
-## Risk areas for future iPhone testing
+- local notification permission on iOS still needs real-device prompt validation
+- photo-library limited access is now tolerated in code for attach flow, but still needs iPhone testing
 
-- Notification permissions and delivery
-  iOS prompt timing, reminder scheduling, and tapped-notification routing need real-device testing.
-- Photo picker and camera permissions
-  iOS may show limited-library access states that Android does not.
-- Local photo reference URIs
-  Captured or attached photo URI formats can differ from Android and should be verified against preview rendering and relink metadata storage.
-- Installed development build behavior
-  The new developer banner labels runtime correctly, but we have not yet confirmed the iOS dev-client path on a real device.
-- Splash/icon parity
-  Android native resources already exist, but the repo does not yet include managed source assets for a future iOS prebuild sync.
+## Camera testing checklist
 
-## Expected iOS permission prompts later
+- Install or generate an iOS development build later
+- Open Today and use `Take Photo`
+- Confirm camera permission prompt appears once and can be re-checked in Diagnostics
+- Confirm captured photo preview renders
+- Confirm saved memory stores metadata-only reference behavior, not a Supabase upload
+- Confirm captured photo can still relink later if NAS indexing catches up
 
-- Camera access for `Take Photo`
-- Photo library access for `Attach from Phone`
-- Notification permission for local memory reminders
+## Media library testing checklist
 
-If limited photo-library access is chosen, verify that the app still handles selected images gracefully.
+- Open Today and use `Attach from Phone`
+- Test both full access and limited-library access on iPhone
+- Confirm selected photos preview correctly after selection
+- Confirm saved refs keep `localUri` as temporary metadata only
+- Confirm memories remain readable if the local asset later becomes unavailable
+- Confirm the app does not require free-form date entry anywhere in the flow
 
-## Future work before TestFlight
+## Notifications testing checklist
 
-1. Install Xcode and generate the `ios/` project with the current Expo config.
-2. Confirm `com.anonymous.tinychapters` is still the desired bundle identifier.
-3. Add and verify iOS app icons and splash source assets, not just Android-generated native resources.
-4. Validate camera, photo picker, Today save flow, memory edit flow, and NAS picker behavior on a real iPhone.
-5. Validate local reminder permissions, scheduling, and tap-through behavior on a real iPhone.
-6. Review whether the current NAS API auth model is acceptable for any distribution broader than personal use.
-7. Prepare release signing, push-notification capability decisions, and TestFlight metadata.
+- Install a real iOS development build
+- Request notification permission from Settings
+- Save enabled reminder settings
+- Confirm scheduled reminder count and next reminder look sensible in Diagnostics
+- Send a test notification
+- Tap the delivered notification and confirm Tiny Chapters opens cleanly
+- Validate reminder scheduling again after app relaunch
+
+Important:
+
+- Android notification channels are correct and should remain Android-only
+- iOS notification delivery and presentation remain unverified until tested on hardware
+
+## NAS and Tailscale checklist
+
+- Confirm the iPhone can reach the configured Photo API URL
+- Do not use `localhost` for phone testing because it points to the phone itself
+- If using LAN access, confirm the host IP is reachable from the phone
+- If using future Tailscale access, switch only `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL`
+- Re-test NAS picker, thumbnails, search, and folder browsing on iPhone
+- Re-test memory detail previews and pending NAS relink behavior
+
+## URI and local-photo risks
+
+Known risks that still need real iPhone validation:
+
+- iOS photo asset URIs may differ from Android in format and lifespan
+- limited photo-library access can affect later preview behavior
+- `file://` handling can differ from Android expectations
+- background access to local assets can be more restrictive
+- phone-local refs are device-specific and should never be treated as durable cross-device storage
+
+Current stance:
+
+- keep `localUri` temporary
+- keep NAS refs durable when available
+- do not upload original photos or thumbnails to Supabase
+
+## NAS/local-network concerns for iPhone
+
+Current concerns to validate later:
+
+- the iPhone must be able to reach the LAN, Tailscale, or later cloud URL directly
+- `localhost` means the phone itself, not the Windows host machine
+- plain HTTP may work for personal testing but should be reviewed later for broader distribution expectations
+- local network privacy prompts may matter depending on how access is performed
+- Tailscale remains the preferred future remote-access direction
+
+## Known blockers
+
+- no real iPhone hardware validation yet
+- no `ios/` project generated yet
+- no Apple Developer account or TestFlight setup yet
+- no managed icon/splash source assets committed yet
+- NAS HTTP and reachability assumptions are documented, not validated on iPhone
 
 ## Apple Developer account requirement
 
-You can do some simulator work without a paid Apple Developer account, but real TestFlight distribution requires an Apple Developer Program membership. Real-device install workflows are also much smoother with a properly configured Apple account.
+An Apple Developer account is not needed for Phase 8.
 
-## Known limitations
+It becomes needed later for:
 
-- Tiny Chapters is still daily-driver-ready on Android first.
-- iOS readiness is documented, not completed.
-- No real iPhone validation has happened in this phase.
-- Notification behavior should be considered unverified on iOS until tested on hardware.
+- smooth real-device signing workflows
+- TestFlight distribution
+- eventual App Store release work
+
+## Next steps before the first iOS build
+
+1. Generate the iOS project from the current Expo config.
+2. Decide whether `com.anonymous.tinychapters` should remain the long-term bundle identifier.
+3. Add proper managed icon and splash source assets.
+4. Run a real iPhone dev-build pass for camera, library, reminders, and NAS reachability.
+5. Revisit NAS networking expectations for LAN and future Tailscale use.
+6. Only after that, plan the first TestFlight-focused phase.

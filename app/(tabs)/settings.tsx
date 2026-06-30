@@ -18,9 +18,7 @@ import {
   getReminderDescription,
   getReminderSettings,
   getNextReminderDate,
-  getNotificationPermissionStatus,
   isReminderNotificationsSupported,
-  requestNotificationPermission,
   rescheduleMemoryReminders,
   saveReminderSettings,
   sendTestMemoryReminder,
@@ -33,6 +31,10 @@ import {
   runRelinkRetry,
   testNasStatus,
 } from "@/services/diagnostics/diagnosticsService";
+import {
+  getNotificationPermissionStatus,
+  requestNotificationPermission,
+} from "@/services/permissions/permissionService";
 import {
   getActivePhotoSourceMode,
   getNasPhotoApiBaseUrl,
@@ -272,7 +274,7 @@ export default function SettingsScreen() {
   const handlePermissionRequest = async () => {
     if (!notificationsSupported) {
       setReminderMessage(
-        "Expo Go on Android does not support this notification flow. Use your development build to test reminders."
+        "Expo Go does not support this notification flow here. Use your development build to test reminders."
       );
       return;
     }
@@ -287,7 +289,7 @@ export default function SettingsScreen() {
         setReminderMessage("Notifications are enabled for Tiny Chapters.");
       } else {
         setReminderMessage(
-          "Notifications are still unavailable. If the system keeps denying them, enable Tiny Chapters notifications in Android settings."
+          "Notifications are still unavailable. If the system keeps denying them, enable Tiny Chapters notifications in system settings."
         );
       }
     } catch (error) {
@@ -306,7 +308,7 @@ export default function SettingsScreen() {
 
     if (!notificationsSupported) {
       setReminderMessage(
-        "Reminder settings can only be tested in a development build on Android because Expo Go does not support expo-notifications here."
+        "Reminder settings can only be tested in a development build because Expo Go does not support expo-notifications here."
       );
       return;
     }
@@ -339,7 +341,7 @@ export default function SettingsScreen() {
 
       if (settingsToSave.enabled && nextPermissionStatus !== "granted") {
         setReminderMessage(
-          "Reminder settings were saved, but Android notifications are not enabled yet. You may need to allow them in system settings."
+          "Reminder settings were saved, but notifications are not enabled yet. You may need to allow them in system settings."
         );
         setNextReminderTimestamp(null);
         return;
@@ -369,7 +371,7 @@ export default function SettingsScreen() {
 
     if (!notificationsSupported) {
       setReminderMessage(
-        "Test reminders require a development build on Android. Expo Go will not deliver expo-notifications here."
+        "Test reminders require a development build. Expo Go will not deliver expo-notifications here."
       );
       return;
     }
@@ -533,7 +535,7 @@ export default function SettingsScreen() {
         </Text>
         {!notificationsSupported ? (
           <Text style={styles.permissionWarning}>
-            Expo Go on Android does not support this reminder feature. Use your development build if you want to test notification permissions and reminder delivery.
+            Expo Go does not support this reminder feature here. Use your development build if you want to test notification permissions and reminder delivery.
           </Text>
         ) : null}
 
@@ -699,7 +701,7 @@ export default function SettingsScreen() {
               )}
               {permissionStatus === "denied" ? (
                 <Text style={styles.permissionWarning}>
-                  Android notifications are denied right now. You can retry below, but you may also need to enable them in system settings.
+                  Notifications are denied right now. You can retry below, but you may also need to enable them in system settings.
                 </Text>
               ) : null}
             </View>

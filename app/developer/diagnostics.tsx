@@ -14,6 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import {
   clearDiagnosticsEvents,
   getDiagnosticsSnapshot,
+  getIosReadinessDiagnostics,
   getNotificationDiagnostics,
   getPhotoDurabilityCounts,
   getRecentDiagnosticsEvents,
@@ -25,6 +26,7 @@ import {
   testSupabaseConnection,
   type DiagnosticsEvent,
   type DiagnosticsSnapshot,
+  type IosReadinessDiagnostics,
   type NasHealthResult,
   type NasStatusResult,
   type NotificationDiagnostics,
@@ -90,6 +92,7 @@ export default function DiagnosticsScreen() {
   const [durabilitySummary, setDurabilitySummary] = useState<PhotoDurabilitySummary | null>(null);
   const [relinkSummary, setRelinkSummary] = useState<NasRelinkSummary | null>(null);
   const [notificationDiagnostics, setNotificationDiagnostics] = useState<NotificationDiagnostics | null>(null);
+  const [iosReadinessDiagnostics, setIosReadinessDiagnostics] = useState<IosReadinessDiagnostics | null>(null);
   const [events, setEvents] = useState<DiagnosticsEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
@@ -110,21 +113,30 @@ export default function DiagnosticsScreen() {
         setSnapshot(null);
         setDurabilitySummary(null);
         setNotificationDiagnostics(null);
+        setIosReadinessDiagnostics(null);
         setEvents([]);
         return;
       }
 
-      const [nextSnapshot, nextDurability, nextNotificationDiagnostics, nextEvents] =
+      const [
+        nextSnapshot,
+        nextDurability,
+        nextNotificationDiagnostics,
+        nextIosReadinessDiagnostics,
+        nextEvents,
+      ] =
         await Promise.all([
           getDiagnosticsSnapshot(),
           getPhotoDurabilityCounts(),
           getNotificationDiagnostics(),
+          getIosReadinessDiagnostics(),
           getRecentDiagnosticsEvents(),
         ]);
 
       setSnapshot(nextSnapshot);
       setDurabilitySummary(nextDurability);
       setNotificationDiagnostics(nextNotificationDiagnostics);
+      setIosReadinessDiagnostics(nextIosReadinessDiagnostics);
       setEvents(nextEvents);
     } finally {
       setIsLoading(false);
@@ -353,6 +365,25 @@ export default function DiagnosticsScreen() {
           </Pressable>
         </DiagnosticsSection>
 
+        <DiagnosticsSection title="iOS Readiness">
+          <KeyValue label="Current platform" value={iosReadinessDiagnostics?.platform ?? "Unknown"} />
+          <KeyValue label="Bundle identifier" value={iosReadinessDiagnostics?.bundleIdentifier ?? "Unavailable"} />
+          <KeyValue label="Notification permission" value={iosReadinessDiagnostics?.notificationPermissionStatus ?? "Unknown"} />
+          <KeyValue label="Camera permission" value={iosReadinessDiagnostics?.cameraPermissionStatus ?? "Unknown"} />
+          <KeyValue label="Media permission" value={iosReadinessDiagnostics?.mediaLibraryPermissionStatus ?? "Unknown"} />
+          <KeyValue label="Photo source mode" value={iosReadinessDiagnostics?.photoSourceMode ?? "Unknown"} />
+          <KeyValue label="Photo API URL" value={iosReadinessDiagnostics?.photoApiUrl ?? "Not configured"} />
+          {iosReadinessDiagnostics?.localUriRiskNote ? (
+            <Text style={styles.detailText}>{iosReadinessDiagnostics.localUriRiskNote}</Text>
+          ) : null}
+          {iosReadinessDiagnostics?.localhostWarning ? (
+            <Text style={styles.warningText}>{iosReadinessDiagnostics.localhostWarning}</Text>
+          ) : null}
+          {iosReadinessDiagnostics?.insecureHttpWarning ? (
+            <Text style={styles.warningText}>{iosReadinessDiagnostics.insecureHttpWarning}</Text>
+          ) : null}
+        </DiagnosticsSection>
+
         <DiagnosticsSection title="Recent Diagnostics Log">
           <Pressable
             style={styles.secondaryButton}
@@ -383,7 +414,7 @@ export default function DiagnosticsScreen() {
                     [{event.category}] {event.title}
                   </Text>
                   <Text style={styles.logMeta}>
-                    {event.level.toUpperCase()} · {formatDateTime(event.timestamp)}
+                    {event.level.toUpperCase()} | {formatDateTime(event.timestamp)}
                   </Text>
                   {event.detail ? <Text style={styles.logDetail}>{event.detail}</Text> : null}
                 </View>
@@ -493,6 +524,11 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: theme.typography.body,
     lineHeight: 22,
+  },
+  warningText: {
+    color: "#B44D47",
+    fontSize: theme.typography.caption,
+    lineHeight: 18,
   },
   group: {
     gap: theme.spacing.sm,

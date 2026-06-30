@@ -14,7 +14,7 @@ Future AI coding agents and maintainers should read these first:
 
 These files are the canonical startup context and should be updated after each completed phase or meaningful architecture, data model, or roadmap change.
 
-## Phase 7 status
+## Phase 8 status
 
 Current state:
 - Expo mobile shell with tab navigation
@@ -29,11 +29,13 @@ Current state:
 - Hidden Developer Mode with a diagnostics screen for Supabase, NAS, relink, notification, and environment troubleshooting
 - Installed Expo Development Build workflow for real device testing
 - Developer-only startup environment banner and startup diagnostics
+- Centralized permission helpers for notifications, camera, and photo-library access
+- iOS readiness diagnostics for bundle id, permission states, Photo API URL, and future NAS warning checks
 - Today, Timeline, Search, and Settings screens working against service abstractions
 - Native Android project available for emulator/device work when needed
 
 Not implemented yet:
-- Full iOS support or TestFlight readiness
+- Full iPhone validation, generated `ios/` project work, or TestFlight readiness
 - AI cleanup
 - Export flow
 - Device photo library browsing as a primary archive source
@@ -53,19 +55,32 @@ Typical daily workflow:
 Quick commands:
 
 ```powershell
-npm run photo-api:dev
+npm run photo-api
 npm run dev
+```
+
+Reconnect an already-installed dev build to Metro:
+
+```powershell
+npm run android:launch
 ```
 
 First install or after native config changes:
 
 ```powershell
-npm run android
+npm run rebuild
 ```
 
-For a physical device target:
+Quick troubleshooting:
 
 ```powershell
+npm run doctor
+```
+
+The lower-level Expo install commands still exist if you want them directly:
+
+```powershell
+npm run android
 npm run android:device
 ```
 
@@ -97,10 +112,16 @@ Start Metro:
 npm run dev
 ```
 
-Run Android:
+Launch the installed Android dev build:
 
 ```powershell
-npm run android
+npm run android:launch
+```
+
+Rebuild the Android dev build when native changes require it:
+
+```powershell
+npm run rebuild
 ```
 
 If Metro gets stuck on stale cache data:
@@ -119,8 +140,9 @@ npm run start:clear
 - `src/services/photo/photoRelinkService.ts` holds the placeholder relink seam for future NAS matching
 - `app/photo-picker.tsx` provides the dedicated NAS selection flow for durable photo refs, with paged date, search, and folder modes
 - `app/memory/[id].tsx` handles memory detail, edit, delete, and attachment management
-- `src/services/notifications/reminderService.ts` owns local reminder settings, permission handling, and schedule management
-- `src/services/diagnostics/diagnosticsService.ts` centralizes developer-only diagnostics, safe masking, and recent diagnostic event logging
+- `src/services/notifications/reminderService.ts` owns local reminder settings, schedule management, and Android-only notification-channel setup
+- `src/services/permissions/permissionService.ts` centralizes notification, camera, and media-library permission requests and status checks
+- `src/services/diagnostics/diagnosticsService.ts` centralizes developer-only diagnostics, safe masking, iOS readiness checks, and recent diagnostic event logging
 - `src/lib/supabase.ts` initializes the Supabase client with Expo env vars and SecureStore-backed auth persistence
 - `src/types/` defines domain models for memories and photos
 
@@ -231,7 +253,7 @@ Reminder permission behavior:
 
 - Tiny Chapters requests notification permission only when needed
 - denied permission is handled gracefully in Settings
-- Android system settings may still be needed if the OS stops showing the permission prompt
+- system settings may still be needed if the OS stops showing the permission prompt
 
 Deleting a memory removes only the memory row plus its linked `memory_photo_refs` rows. The foreign key on `memory_photo_refs.memory_id` already uses `on delete cascade`, so original NAS or phone photos are never deleted by Tiny Chapters.
 
@@ -272,9 +294,12 @@ EXPO_PUBLIC_NAS_PHOTO_API_KEY=change-me
 ```
 
 Notes:
-- On a physical Android device, `localhost` points to the phone itself, not your computer.
+- On a physical phone, `localhost` points to that phone itself, not your computer.
 - Use your computer or NAS service's LAN IP address for real device testing.
+- The repo scripts now keep Metro on port `8081` so the dev client has a stable default target.
+- If you need to override the detected host IP, set `EXPO_DEV_SERVER_HOST` before `npm run android:launch` or `npm run rebuild`.
 - On Android emulator, special host mappings may be needed depending on where the API runs.
+- Future iPhone validation should also treat plain HTTP NAS URLs as a personal-use assumption that still needs device testing.
 - Future Tailscale and cloud changes should switch only `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL`, not multiple code paths.
 
 ## Local Photo API service
@@ -378,6 +403,7 @@ Diagnostics currently cover:
 - NAS Photo API `/health` and `/status`
 - photo relink retry and durability counts
 - notification status and test reminder actions
+- iOS readiness signals such as bundle id, permission states, and NAS URL warnings
 - recent diagnostics events
 
 Secrets intentionally stay hidden:

@@ -6,13 +6,13 @@ Read this file, [ARCHITECTURE.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\
 
 Tiny Chapters is a private memory capsule and journal app for capturing small family moments. The mobile app stores auth, memory text, tags, and photo reference metadata in Supabase. Original photos stay outside Supabase. In the current personal workflow, a separate local Photo API indexes a Windows-accessible NAS share and serves metadata, thumbnails, and view URLs to the app.
 
-## Current status after Phase 7
+## Current status after Phase 8
 
 Implemented in the repo now:
 
 - Expo Router mobile app with Today, Timeline, Search, and Settings flows
 - Supabase Auth plus Supabase-backed `memories` and `memory_photo_refs`
-- Service-layer boundaries for auth, memories, photos, reminders, and diagnostics
+- Service-layer boundaries for auth, memories, photos, reminders, diagnostics, and permissions
 - Mock and NAS photo provider modes behind `photoService`
 - Standalone `photo-api/` service with bearer auth, SQLite index, scan history, root checks, scheduled scans, thumbnails, and metadata matching
 - NAS photo picker with By Date, Search, and Folders modes, paging, multi-select, preview, and native date picker
@@ -22,12 +22,15 @@ Implemented in the repo now:
 - Local reminder engine using `expo-notifications` and AsyncStorage
 - Hidden Developer Mode and Diagnostics screen
 - Installed Expo Development Build workflow with `expo-dev-client`
+- Fixed-port Metro workflow on `8081` plus PowerShell `doctor`, `rebuild`, and `android:launch` tooling
 - Developer-only startup environment banner and startup diagnostics
-- Phase 7 documentation for Development Setup and iOS readiness
+- Centralized permission helpers for notifications, camera, and photo-library access
+- iOS readiness diagnostics for bundle id, permission status, Photo API URL, and NAS warning checks
+- Phase 8 documentation for Development Setup and iOS readiness
 
 Not implemented yet:
 
-- Full iOS support or TestFlight readiness
+- Real iPhone validation, generated `ios/` project work, and TestFlight readiness
 - Device photo library provider as a first-class source mode
 - On This Day resurfacing
 - Guided AI memory questions
@@ -50,6 +53,9 @@ Mobile app:
 ```powershell
 npm install
 npm run dev
+npm run rebuild
+npm run android:launch
+npm run doctor
 npm run android
 npm run android:device
 npm run start:clear
@@ -95,10 +101,12 @@ Photo API:
 
 - Read `docs/AI_CONTEXT.md`, `docs/ARCHITECTURE.md`, and `docs/ROADMAP.md` before making changes.
 - Read `docs/DEVELOPMENT_SETUP.md` and `docs/IOS_READINESS.md` before changing native/dev-workflow or platform behavior.
+- Keep the Metro port pinned to `8081` for dev-client workflows unless the repo docs and scripts are updated together.
 - Update these docs after every completed phase or meaningful architecture/data-model/roadmap change.
 - Document actual repo state, not intended state.
 - Do not upload or copy photos to Supabase unless a later storage phase explicitly changes that decision.
 - Preserve the provider/service abstraction. Screens should stay thin.
+- Keep platform-aware permission and notification behavior in services or shared components rather than scattering new `Platform.OS` checks through screens.
 - Keep NAS support optional and product-friendly rather than hard-wiring the whole app to a single home setup.
 - Never expose secrets in UI, logs, screenshots, sample env files, or docs.
 - Treat every `EXPO_PUBLIC_*` value as public once bundled into the app.
@@ -122,3 +130,8 @@ Photo API:
 
 - The older lowercase `docs/architecture.md` described parts of the Photo API and relink flow as future work. In the current repo, those pieces already exist and are documented as implemented in the uppercase docs.
 - The installed Development Build is now the primary daily workflow. Expo Go is only for quick experiments and is not the source of truth for notifications or device-permission testing.
+- The repo-level Android helper flow is now:
+  `npm run doctor` for diagnostics,
+  `npm run dev` for normal Metro work on `8081`,
+  `npm run android:launch` to reconnect an installed build,
+  and `npm run rebuild` when native changes require a new development client.

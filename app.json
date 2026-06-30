@@ -29,7 +29,13 @@
       ]
     ],
     "ios": {
-      "bundleIdentifier": "com.anonymous.tinychapters"
+      "bundleIdentifier": "com.anonymous.tinychapters",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Tiny Chapters uses your camera so you can attach a fresh family moment to a memory during development testing.",
+        "NSPhotoLibraryUsageDescription": "Tiny Chapters uses your photo library so you can attach a phone photo as a temporary reference while the original stays outside Supabase.",
+        "NSPhotoLibraryAddUsageDescription": "Tiny Chapters may save a captured photo to your library before it is referenced from a memory during development testing.",
+        "NSLocalNetworkUsageDescription": "Tiny Chapters may connect to a local Photo API on your home network so you can browse NAS photo references during development testing."
+      }
     },
     "android": {
       "package": "com.anonymous.tinychapters"

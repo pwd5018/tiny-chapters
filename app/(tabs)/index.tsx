@@ -27,6 +27,10 @@ import {
   isReminderNotificationsSupported,
 } from "@/services/notifications/reminderService";
 import {
+  requestCameraPermission,
+  requestMediaLibraryPermission,
+} from "@/services/permissions/permissionService";
+import {
   getAttachedPhotoDisplayName,
   getAttachedPhotoPreviewUri,
   getAttachedPhotoSyncStatusLabel,
@@ -323,9 +327,9 @@ export default function TodayScreen() {
     setSaveMessage("");
 
     try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      const permission = await requestCameraPermission();
 
-      if (!permission.granted) {
+      if (permission !== "granted") {
         setErrorMessage("Camera permission is needed before Tiny Chapters can take a photo.");
         return;
       }
@@ -365,9 +369,9 @@ export default function TodayScreen() {
     setSaveMessage("");
 
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission = await requestMediaLibraryPermission();
 
-      if (!permission.granted) {
+      if (permission !== "granted" && permission !== "limited") {
         setErrorMessage(
           "Photo library permission is needed before Tiny Chapters can attach a phone photo."
         );
