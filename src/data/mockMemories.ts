@@ -7,6 +7,7 @@ export const mockMemories: Memory[] = [
     prompt: "What made your family laugh today?",
     text: "Mila tried to teach the dog how to whisper and got more dramatic with every attempt.",
     tags: ["family", "funny", "dog"],
+    guidedContext: null,
     attachedPhotos: [
       {
         photoId: "photo-2026-06-12-1",
@@ -26,6 +27,7 @@ export const mockMemories: Memory[] = [
     prompt: "What tiny moment felt worth keeping?",
     text: "Lunch got quiet for a second because everyone was watching rain bead down the window.",
     tags: ["quiet", "rain"],
+    guidedContext: null,
     attachedPhotos: [
       {
         photoId: "photo-2026-06-11-1",
@@ -44,6 +46,7 @@ export const mockMemories: Memory[] = [
     prompt: "What did your kid say that you want to remember later?",
     text: "At bedtime, Theo said the moon looked like it forgot part of its pancake.",
     tags: ["kids", "bedtime"],
+    guidedContext: null,
     attachedPhotos: [],
     createdAt: "2026-06-09T23:05:00.000Z",
     updatedAt: "2026-06-09T23:05:00.000Z",

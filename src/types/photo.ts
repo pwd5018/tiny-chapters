@@ -1,8 +1,17 @@
-import type { AttachedPhotoSource } from "@/types/memory";
+export type PhotoBrowseSource = "mock" | "nas" | "device";
+export type PhotoAssetSource = "mock" | "nas" | "device";
+
+export type PhotoProviderCapabilities = {
+  supportsDateLookup: boolean;
+  supportsSearch: boolean;
+  supportsFolders: boolean;
+  supportsRelinkMatching: boolean;
+  requiresPermission: boolean;
+};
 
 export type PhotoAsset = {
   id: string;
-  source: AttachedPhotoSource;
+  source: PhotoAssetSource;
   takenAt: string;
   filename: string;
   path: string;

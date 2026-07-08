@@ -19,9 +19,21 @@ function formatDisplayDate(isoDate: string) {
   });
 }
 
+function getMemoryExcerpt(text: string) {
+  const trimmed = text.trim();
+
+  if (trimmed.length <= 180) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, 177).trimEnd()}...`;
+}
+
 export function MemoryCard({ memory }: { memory: Memory }) {
   const router = useRouter();
-  const [photoAssets, setPhotoAssets] = useState<Array<PhotoAsset | { id: string; thumbnailUrl: string }>>([]);
+  const [photoAssets, setPhotoAssets] = useState<
+    Array<PhotoAsset | { id: string; thumbnailUrl: string }>
+  >([]);
   const [failedPreviewIds, setFailedPreviewIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -60,20 +72,36 @@ export function MemoryCard({ memory }: { memory: Memory }) {
   }, [memory.attachedPhotos]);
 
   return (
-    <Pressable style={styles.card} onPress={() => router.push(`/memory/${memory.id}` as never)}>
-      <Text style={styles.date}>{formatDisplayDate(memory.date)}</Text>
-      <Text style={styles.prompt}>{memory.prompt}</Text>
-      <Text style={styles.text}>{memory.text}</Text>
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed ? styles.cardPressed : null]}
+      onPress={() => router.push(`/memory/${memory.id}` as never)}
+    >
+      <View style={styles.header}>
+        <View style={styles.headerTopRow}>
+          <View style={styles.dateBadge}>
+            <Text style={styles.date}>{formatDisplayDate(memory.date)}</Text>
+          </View>
+          {memory.attachedPhotos.length ? (
+            <View style={styles.miniMetaPill}>
+              <Text style={styles.miniMetaText}>
+                {memory.attachedPhotos.length} {memory.attachedPhotos.length === 1 ? "photo" : "photos"}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={styles.prompt}>{memory.prompt}</Text>
+      </View>
 
-      <Text style={styles.photoCount}>
-        {memory.attachedPhotos.length} attached{" "}
-        {memory.attachedPhotos.length === 1 ? "photo" : "photos"}
-      </Text>
-      {memory.attachedPhotos.length ? (
+      <Text style={styles.text}>{getMemoryExcerpt(memory.text)}</Text>
+
+      <View style={styles.metaRow}>
+        <Text style={styles.metaEyebrow}>Saved moment</Text>
+        {memory.attachedPhotos.length ? (
         <Text style={styles.photoStatusSummary}>
           {summarizeAttachedPhotoStatuses(memory.attachedPhotos)}
         </Text>
-      ) : null}
+        ) : null}
+      </View>
 
       {photoAssets.length ? (
         <View style={styles.previewRow}>
@@ -109,22 +137,69 @@ export function MemoryCard({ memory }: { memory: Memory }) {
           ))}
         </View>
       ) : null}
+
+      <View style={styles.footer}>
+        <View style={styles.footerRule} />
+        <Text style={styles.footerText}>Open memory</Text>
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
+    backgroundColor: "#FFF7EF",
+    borderColor: "#E9D8C7",
     borderRadius: theme.radii.lg,
     borderWidth: 1,
     padding: theme.spacing.lg,
     gap: theme.spacing.sm,
+    shadowColor: "#7C5C4D",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    elevation: 2,
+  },
+  cardPressed: {
+    opacity: 0.94,
+    transform: [{ scale: 0.992 }],
+  },
+  header: {
+    gap: theme.spacing.sm,
+  },
+  headerTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.sm,
+    justifyContent: "space-between",
+  },
+  dateBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#F1DFCD",
+    borderRadius: theme.radii.pill,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+  },
+  miniMetaPill: {
+    backgroundColor: "#FFFDF9",
+    borderColor: "#E9D8C7",
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+  },
+  miniMetaText: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
   },
   date: {
     color: theme.colors.textMuted,
-    fontSize: theme.typography.caption,
+    fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.4,
     textTransform: "uppercase",
@@ -133,38 +208,44 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: theme.typography.title,
     fontWeight: "700",
+    lineHeight: 28,
   },
   text: {
     color: theme.colors.textSecondary,
     fontSize: theme.typography.body,
     lineHeight: 24,
   },
-  photoCount: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.typography.caption,
-    fontWeight: "600",
+  metaRow: {
+    gap: 2,
+  },
+  metaEyebrow: {
+    color: theme.colors.accent,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   photoStatusSummary: {
     color: theme.colors.textMuted,
     fontSize: 11,
-    marginTop: -2,
   },
   previewRow: {
     flexDirection: "row",
     gap: theme.spacing.sm,
-    marginTop: theme.spacing.xs,
   },
   previewImage: {
     borderRadius: theme.radii.md,
-    height: 52,
-    width: 52,
+    height: 78,
+    width: 78,
   },
   previewFallback: {
-    backgroundColor: theme.colors.input,
+    backgroundColor: "#FFFCF8",
     borderRadius: theme.radii.md,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.sm,
     alignSelf: "flex-start",
+    borderColor: theme.colors.border,
+    borderWidth: 1,
   },
   previewFallbackText: {
     color: theme.colors.textMuted,
@@ -175,10 +256,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: theme.spacing.sm,
-    marginTop: theme.spacing.xs,
   },
   tag: {
-    backgroundColor: theme.colors.tagBackground,
+    backgroundColor: "#F3E6D9",
     borderRadius: theme.radii.pill,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: 6,
@@ -187,5 +267,23 @@ const styles = StyleSheet.create({
     color: theme.colors.accent,
     fontSize: theme.typography.caption,
     fontWeight: "700",
+  },
+  footer: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: theme.spacing.xs,
+  },
+  footerRule: {
+    backgroundColor: "#E7D9CB",
+    flex: 1,
+    height: 1,
+    marginRight: theme.spacing.sm,
+  },
+  footerText: {
+    color: theme.colors.accent,
+    fontSize: theme.typography.caption,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
 });

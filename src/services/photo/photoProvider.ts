@@ -3,12 +3,14 @@ import type {
   FolderResult,
   PagedPhotoResult,
   PhotoAsset,
+  PhotoProviderCapabilities,
   PhotoMatchCandidate,
   PhotoPagingParams,
   PhotoSearchParams,
 } from "@/types/photo";
 
 export interface PhotoProvider {
+  getCapabilities(): PhotoProviderCapabilities;
   getPhotosByDate(date: string): Promise<PhotoAsset[]>;
   getPhotoById(photoId: string): Promise<PhotoAsset | null>;
   matchPhotoCandidate(candidate: PhotoMatchCandidate): Promise<PhotoAsset | null>;

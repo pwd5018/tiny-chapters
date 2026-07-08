@@ -89,6 +89,16 @@ function getFolderEntries(): FolderEntry[] {
 }
 
 export const mockPhotoProvider: PhotoProvider = {
+  getCapabilities() {
+    return {
+      supportsDateLookup: true,
+      supportsSearch: true,
+      supportsFolders: true,
+      supportsRelinkMatching: false,
+      requiresPermission: false,
+    };
+  },
+
   async getPhotosByDate(date: string) {
     return mockPhotos.filter((photo) => toDateKey(photo.takenAt) === date);
   },

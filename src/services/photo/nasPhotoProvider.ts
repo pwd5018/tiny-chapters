@@ -39,7 +39,7 @@ function logWarning(message: string, extra?: unknown) {
 }
 
 function isValidSource(value: unknown): value is PhotoAsset["source"] {
-  return value === "nas" || value === "local" || value === "mock";
+  return value === "nas" || value === "mock" || value === "device";
 }
 
 function normalizePhotoAsset(input: unknown): PhotoAsset | null {
@@ -381,6 +381,16 @@ export function createNasPhotoProvider(baseUrl: string, apiKey: string): PhotoPr
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
 
   return {
+    getCapabilities() {
+      return {
+        supportsDateLookup: true,
+        supportsSearch: true,
+        supportsFolders: true,
+        supportsRelinkMatching: true,
+        requiresPermission: false,
+      };
+    },
+
     async getPhotosByDate(date: string) {
       if (!normalizedBaseUrl || !apiKey) {
         logWarning("Missing NAS base URL or API key for date lookup.");

@@ -11,22 +11,11 @@ import {
   View,
 } from "react-native";
 
+import { parseDateKeyAsLocalDate, toLocalDateKey } from "@/lib/dates";
 import { theme } from "@/theme/theme";
 
-function parseDateKey(dateKey: string) {
-  const [year, month, day] = dateKey.split("-").map((value) => Number(value));
-  return new Date(year, (month || 1) - 1, day || 1, 12, 0, 0, 0);
-}
-
-function toDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function formatDateLabel(dateKey: string) {
-  return parseDateKey(dateKey).toLocaleDateString(undefined, {
+  return parseDateKeyAsLocalDate(dateKey).toLocaleDateString(undefined, {
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -41,11 +30,11 @@ type DatePickerFieldProps = {
 
 export function DatePickerField({ value, onChange, helperText }: DatePickerFieldProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [draftDate, setDraftDate] = useState(() => parseDateKey(value));
-  const selectedDate = useMemo(() => parseDateKey(value), [value]);
+  const [draftDate, setDraftDate] = useState(() => parseDateKeyAsLocalDate(value));
+  const selectedDate = useMemo(() => parseDateKeyAsLocalDate(value), [value]);
 
   const openPicker = () => {
-    setDraftDate(parseDateKey(value));
+    setDraftDate(parseDateKeyAsLocalDate(value));
     setIsOpen(true);
   };
 
@@ -56,7 +45,7 @@ export function DatePickerField({ value, onChange, helperText }: DatePickerField
     }
 
     if (nextDate) {
-      onChange(toDateKey(nextDate));
+      onChange(toLocalDateKey(nextDate));
     }
 
     setIsOpen(false);
@@ -70,8 +59,14 @@ export function DatePickerField({ value, onChange, helperText }: DatePickerField
 
   return (
     <View style={styles.wrapper}>
-      <Pressable style={styles.field} onPress={openPicker}>
-        <Text style={styles.fieldValue}>{formatDateLabel(value)}</Text>
+      <Pressable
+        style={({ pressed }) => [styles.field, pressed ? styles.fieldPressed : null]}
+        onPress={openPicker}
+      >
+        <View style={styles.fieldCopy}>
+          <Text style={styles.fieldLabel}>Photo day</Text>
+          <Text style={styles.fieldValue}>{formatDateLabel(value)}</Text>
+        </View>
         <Text style={styles.fieldAction}>Change</Text>
       </Pressable>
       {helperText ? <Text style={styles.helperText}>{helperText}</Text> : null}
@@ -97,13 +92,22 @@ export function DatePickerField({ value, onChange, helperText }: DatePickerField
                 onChange={handleIosChange}
               />
               <View style={styles.modalActions}>
-                <Pressable style={styles.secondaryButton} onPress={() => setIsOpen(false)}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.secondaryButton,
+                    pressed ? styles.secondaryButtonPressed : null,
+                  ]}
+                  onPress={() => setIsOpen(false)}
+                >
                   <Text style={styles.secondaryButtonText}>Cancel</Text>
                 </Pressable>
                 <Pressable
-                  style={styles.primaryButton}
+                  style={({ pressed }) => [
+                    styles.primaryButton,
+                    pressed ? styles.primaryButtonPressed : null,
+                  ]}
                   onPress={() => {
-                    onChange(toDateKey(draftDate));
+                    onChange(toLocalDateKey(draftDate));
                     setIsOpen(false);
                   }}
                 >
@@ -124,19 +128,32 @@ const styles = StyleSheet.create({
   },
   field: {
     alignItems: "center",
-    backgroundColor: theme.colors.input,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radii.md,
+    backgroundColor: "#FFF9F3",
+    borderColor: "#E6D8CA",
+    borderRadius: theme.radii.lg,
     borderWidth: 1,
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
   },
+  fieldPressed: {
+    backgroundColor: "#FFF5EC",
+  },
+  fieldCopy: {
+    gap: 2,
+  },
+  fieldLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.35,
+    textTransform: "uppercase",
+  },
   fieldValue: {
     color: theme.colors.textPrimary,
     fontSize: theme.typography.body,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   fieldAction: {
     color: theme.colors.accent,
@@ -146,6 +163,7 @@ const styles = StyleSheet.create({
   helperText: {
     color: theme.colors.textSecondary,
     fontSize: theme.typography.caption,
+    lineHeight: 18,
   },
   modalOverlay: {
     alignItems: "center",
@@ -180,6 +198,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 44,
   },
+  secondaryButtonPressed: {
+    backgroundColor: "#FFF6ED",
+  },
   secondaryButtonText: {
     color: theme.colors.textPrimary,
     fontSize: theme.typography.caption,
@@ -192,6 +213,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     minHeight: 44,
+  },
+  primaryButtonPressed: {
+    opacity: 0.92,
   },
   primaryButtonText: {
     color: theme.colors.buttonText,

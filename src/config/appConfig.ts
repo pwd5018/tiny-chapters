@@ -2,7 +2,13 @@ import Constants from "expo-constants";
 
 export type AppEnvironment = "development" | "production";
 export type AppRuntime = "expo-go" | "development-build" | "standalone";
-export type PhotoSourceMode = "mock" | "nas";
+export type PhotoSourceMode = "mock" | "nas" | "device";
+export type NasPhotoApiNetworkTarget =
+  | "not-configured"
+  | "localhost"
+  | "lan"
+  | "tailscale"
+  | "custom";
 
 function readPublicEnvValue(value: string | undefined) {
   return value?.trim() ?? "";
@@ -10,6 +16,53 @@ function readPublicEnvValue(value: string | undefined) {
 
 function resolveAppEnvironment(rawValue: string): AppEnvironment {
   return rawValue.toLowerCase() === "production" ? "production" : "development";
+}
+
+function resolvePhotoSourceMode(rawValue: string): PhotoSourceMode {
+  switch (rawValue.toLowerCase()) {
+    case "nas":
+      return "nas";
+    case "device":
+      return "device";
+    default:
+      return "mock";
+  }
+}
+
+function parseUrlSafely(value: string) {
+  try {
+    return value ? new URL(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+function isLocalhostHostname(hostname: string) {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    hostname === "::1"
+  );
+}
+
+function isPrivateLanIpv4(hostname: string) {
+  return (
+    /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
+    /^192\.168\.\d+\.\d+$/.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(hostname)
+  );
+}
+
+function isTailscaleIpv4(hostname: string) {
+  const match = hostname.match(/^100\.(\d+)\.(\d+)\.(\d+)$/);
+
+  if (!match) {
+    return false;
+  }
+
+  const secondOctet = Number(match[1]);
+  return secondOctet >= 64 && secondOctet <= 127;
 }
 
 const rawAppEnvironment = readPublicEnvValue(process.env.EXPO_PUBLIC_APP_ENV);
@@ -22,10 +75,59 @@ export const nasPhotoApiBaseUrl = readPublicEnvValue(
   process.env.EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL
 ).replace(/\/+$/, "");
 export const nasPhotoApiKey = readPublicEnvValue(process.env.EXPO_PUBLIC_NAS_PHOTO_API_KEY);
-export const photoSourceMode: PhotoSourceMode = rawPhotoSourceMode === "nas" ? "nas" : "mock";
+export const photoSourceMode: PhotoSourceMode = resolvePhotoSourceMode(rawPhotoSourceMode);
 
 export function isNasPhotoApiConfigured() {
-  return photoSourceMode === "nas" && Boolean(nasPhotoApiBaseUrl && nasPhotoApiKey);
+  return Boolean(nasPhotoApiBaseUrl && nasPhotoApiKey);
+}
+
+export function getNasPhotoApiNetworkTarget(
+  baseUrl: string = nasPhotoApiBaseUrl
+): NasPhotoApiNetworkTarget {
+  const normalizedBaseUrl = readPublicEnvValue(baseUrl).replace(/\/+$/, "");
+
+  if (!normalizedBaseUrl) {
+    return "not-configured";
+  }
+
+  const parsedUrl = parseUrlSafely(normalizedBaseUrl);
+
+  if (!parsedUrl) {
+    return "custom";
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase();
+
+  if (isLocalhostHostname(hostname)) {
+    return "localhost";
+  }
+
+  if (isPrivateLanIpv4(hostname) || hostname.endsWith(".local")) {
+    return "lan";
+  }
+
+  if (isTailscaleIpv4(hostname) || hostname.endsWith(".ts.net")) {
+    return "tailscale";
+  }
+
+  return "custom";
+}
+
+export function getNasPhotoApiNetworkTargetLabel(
+  target: NasPhotoApiNetworkTarget = getNasPhotoApiNetworkTarget()
+) {
+  switch (target) {
+    case "localhost":
+      return "Localhost only";
+    case "lan":
+      return "LAN";
+    case "tailscale":
+      return "Tailscale";
+    case "custom":
+      return "Custom";
+    default:
+      return "Not configured";
+  }
 }
 
 export function getAppRuntime(): AppRuntime {

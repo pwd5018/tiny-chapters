@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useContext, useMemo } from "react";
 
 import { prompts } from "@/data/prompts";
+import { addLocalDays, parseDateKeyAsLocalDate, toLocalDateKey } from "@/lib/dates";
 import {
   getSupabaseClient,
   type SupabaseMemoryPhotoRefRow,
@@ -10,8 +11,17 @@ import { getCurrentUser } from "@/services/auth/authService";
 import { normalizeAttachedPhotoSyncStatus } from "@/services/photo/photoDurability";
 import type { CreateMemoryInput, Memory } from "@/types/memory";
 
+type MemoryStats = {
+  totalMemories: number;
+  totalPhotoRefs: number;
+  thisMonthMemories: number;
+  currentStreak: number;
+};
+
 type MemoryRepository = {
   getMemories: () => Promise<Memory[]>;
+  getOnThisDayMemories: (date: Date, options?: { limit?: number }) => Promise<Memory[]>;
+  getMemoryStats: (date?: Date) => Promise<MemoryStats>;
   getMemoryById: (id: string) => Promise<Memory | null>;
   createMemory: (input: CreateMemoryInput) => Promise<Memory>;
   updateMemory: (id: string, input: Omit<CreateMemoryInput, "attachedPhotos">) => Promise<Memory>;
@@ -33,8 +43,42 @@ function normalizeSearchValue(value: string) {
   return value.trim().toLowerCase();
 }
 
+function toMonthDayKey(isoString: string) {
+  return isoString.slice(5, 10);
+}
+
+function toDateKey(isoString: string) {
+  return isoString.slice(0, 10);
+}
+
+function getCurrentStreak(memories: Memory[], today: Date) {
+  const distinctDateKeys = [...new Set(memories.map((memory) => toDateKey(memory.date)))];
+
+  if (!distinctDateKeys.length) {
+    return 0;
+  }
+
+  const latestDate = distinctDateKeys[0];
+  const todayKey = toLocalDateKey(today);
+  const yesterdayKey = toLocalDateKey(addLocalDays(today, -1));
+
+  if (latestDate !== todayKey && latestDate !== yesterdayKey) {
+    return 0;
+  }
+
+  let streak = 0;
+  let cursor = parseDateKeyAsLocalDate(latestDate);
+
+  while (distinctDateKeys.includes(toLocalDateKey(cursor))) {
+    streak += 1;
+    cursor = addLocalDays(cursor, -1);
+  }
+
+  return streak;
+}
+
 function mapDateStringToIso(date: string) {
-  return new Date(`${date}T12:00:00.000Z`).toISOString();
+  return parseDateKeyAsLocalDate(date).toISOString();
 }
 
 function mapMemoryRow(
@@ -47,6 +91,7 @@ function mapMemoryRow(
     prompt: row.prompt,
     text: row.text,
     tags: row.tags ?? [],
+    guidedContext: row.guided_context ?? null,
     attachedPhotos: photoRefs.map((photoRef) => ({
       photoId: photoRef.photo_id,
       source: photoRef.source,
@@ -156,7 +201,7 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     const userId = await getUserIdOrThrow();
     const { data, error } = await supabase
       .from("memories")
-      .select("id, user_id, date, prompt, text, tags, created_at, updated_at")
+      .select("id, user_id, date, prompt, text, tags, guided_context, created_at, updated_at")
       .eq("user_id", userId)
       .order("date", { ascending: false })
       .order("created_at", { ascending: false });
@@ -173,7 +218,7 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     const userId = await getUserIdOrThrow();
     const { data, error } = await supabase
       .from("memories")
-      .select("id, user_id, date, prompt, text, tags, created_at, updated_at")
+      .select("id, user_id, date, prompt, text, tags, guided_context, created_at, updated_at")
       .eq("user_id", userId)
       .eq("id", id)
       .maybeSingle();
@@ -190,6 +235,51 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     return mapMemoryRow(data as SupabaseMemoryRow, refsByMemoryId.get(data.id) ?? []);
   };
 
+  const getOnThisDayMemories = async (
+    date: Date,
+    options?: { limit?: number }
+  ) => {
+    const allMemories = await getMemories();
+    const targetMonthDay = toMonthDayKey(date.toISOString());
+    const targetYear = date.getUTCFullYear();
+    const matchingMemories = allMemories.filter((memory) => {
+      const memoryDate = new Date(memory.date);
+      return (
+        toMonthDayKey(memory.date) === targetMonthDay &&
+        memoryDate.getUTCFullYear() < targetYear
+      );
+    });
+
+    const limit = options?.limit;
+
+    return typeof limit === "number"
+      ? matchingMemories.slice(0, Math.max(limit, 0))
+      : matchingMemories;
+  };
+
+  const getMemoryStats = async (date = new Date()) => {
+    const allMemories = await getMemories();
+    const currentMonth = date.getUTCMonth();
+    const currentYear = date.getUTCFullYear();
+
+    return {
+      totalMemories: allMemories.length,
+      totalPhotoRefs: allMemories.reduce(
+        (total, memory) => total + memory.attachedPhotos.length,
+        0
+      ),
+      thisMonthMemories: allMemories.filter((memory) => {
+        const memoryDate = new Date(memory.date);
+
+        return (
+          memoryDate.getUTCMonth() === currentMonth &&
+          memoryDate.getUTCFullYear() === currentYear
+        );
+      }).length,
+      currentStreak: getCurrentStreak(allMemories, date),
+    };
+  };
+
   const createMemory = async (input: CreateMemoryInput) => {
     const supabase = getSupabaseClient();
     const userId = await getUserIdOrThrow();
@@ -201,8 +291,9 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
         prompt: input.prompt,
         text: input.text,
         tags: input.tags,
+        guided_context: input.guidedContext ?? null,
       })
-      .select("id, user_id, date, prompt, text, tags, created_at, updated_at")
+      .select("id, user_id, date, prompt, text, tags, guided_context, created_at, updated_at")
       .single();
 
     if (error) {
@@ -232,6 +323,7 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
         prompt: input.prompt,
         text: input.text,
         tags: input.tags,
+        guided_context: input.guidedContext ?? null,
       })
       .eq("id", id)
       .eq("user_id", userId);
@@ -315,7 +407,7 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
   };
 
   const getDailyPrompt = (date = new Date()) => {
-    const dayKey = date.toISOString().slice(0, 10).replaceAll("-", "");
+    const dayKey = toLocalDateKey(date).replaceAll("-", "");
     const promptIndex = Number(dayKey) % prompts.length;
     return prompts[promptIndex];
   };
@@ -323,6 +415,8 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
   const value = useMemo<MemoryRepository>(
     () => ({
       getMemories,
+      getOnThisDayMemories,
+      getMemoryStats,
       getMemoryById,
       createMemory,
       updateMemory,

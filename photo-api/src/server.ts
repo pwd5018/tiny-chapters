@@ -5,6 +5,7 @@ import process from "node:process";
 import cors from "cors";
 import express from "express";
 
+import { createAiRouter } from "./aiRoutes";
 import { config } from "./config";
 import { closeDatabase, markInterruptedScanRuns, markScanRunInterrupted } from "./db";
 import { logError, logInfo } from "./logger";
@@ -28,6 +29,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(createPhotoRouter(packageJson.version));
+app.use(createAiRouter());
 
 const schedulerHandle = startScheduledScanRunner();
 
@@ -38,6 +40,7 @@ const server = app.listen(config.port, () => {
     photoLibraryRoot: config.photoLibraryRoot,
     thumbnailCacheDir: config.thumbnailCacheDir,
     databasePath: config.databasePath,
+    aiProvider: config.aiProvider,
     schedulerEnabled: config.enableScheduledScan,
     scheduledScanTime: config.scheduledScanTime,
     scheduledScanTimezone: config.scheduledScanTimezone,

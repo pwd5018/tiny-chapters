@@ -13,6 +13,7 @@ What is now in place:
 - notification channel setup stays Android-only inside `src/services/notifications/reminderService.ts`
 - date and time pickers already live behind shared components with Android and iOS-specific behavior contained there
 - Developer Diagnostics now include an `iOS Readiness` section with bundle id, permission states, photo mode, Photo API URL, and iOS-specific NAS warnings
+- Developer Diagnostics also classify the Photo API path as `LAN`, `Tailscale`, `Localhost only`, or `Custom`
 - Photo API base URL remains centralized through `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL`
 
 What is still not done:
@@ -32,6 +33,7 @@ What is still not done:
 - `@react-native-community/datetimepicker` behind shared `DatePickerField` and `TimePickerField`
 - local reminder scheduling architecture
 - centralized Photo API URL switching for LAN, future Tailscale, or future cloud access
+- centralized Photo API path diagnostics so iPhone checks can distinguish LAN-only vs Tailscale-ready URLs
 
 ## App config audit
 
@@ -101,10 +103,14 @@ Important:
 
 ## NAS and Tailscale checklist
 
+- Android-side Tailscale remote Photo API access is now confirmed in the current repo workflow.
 - Confirm the iPhone can reach the configured Photo API URL
 - Do not use `localhost` for phone testing because it points to the phone itself
 - If using LAN access, confirm the host IP is reachable from the phone
-- If using future Tailscale access, switch only `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL`
+- If using Tailscale access, run Tailscale on both the iPhone and the Windows Photo API host
+- If using Tailscale access, switch only `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL`
+- Keep the same Photo API host and port `5055`; do not open router ports for Tiny Chapters
+- In Developer Diagnostics, confirm the Photo API network path reports `Tailscale` instead of `Localhost only`
 - Re-test NAS picker, thumbnails, search, and folder browsing on iPhone
 - Re-test memory detail previews and pending NAS relink behavior
 
@@ -132,7 +138,7 @@ Current concerns to validate later:
 - `localhost` means the phone itself, not the Windows host machine
 - plain HTTP may work for personal testing but should be reviewed later for broader distribution expectations
 - local network privacy prompts may matter depending on how access is performed
-- Tailscale remains the preferred future remote-access direction
+- Tailscale is the preferred personal remote-access direction for this phase
 
 ## Known blockers
 
@@ -141,6 +147,7 @@ Current concerns to validate later:
 - no Apple Developer account or TestFlight setup yet
 - no managed icon/splash source assets committed yet
 - NAS HTTP and reachability assumptions are documented, not validated on iPhone
+- Tailscale remote access is now confirmed on Android but not yet validated on real iPhone hardware
 
 ## Apple Developer account requirement
 
@@ -158,5 +165,5 @@ It becomes needed later for:
 2. Decide whether `com.anonymous.tinychapters` should remain the long-term bundle identifier.
 3. Add proper managed icon and splash source assets.
 4. Run a real iPhone dev-build pass for camera, library, reminders, and NAS reachability.
-5. Revisit NAS networking expectations for LAN and future Tailscale use.
+5. Run a real iPhone pass for LAN and Tailscale Photo API reachability.
 6. Only after that, plan the first TestFlight-focused phase.

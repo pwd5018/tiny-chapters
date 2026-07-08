@@ -19,15 +19,41 @@ export function normalizeAttachedPhotoSyncStatus(
 export function getAttachedPhotoSyncStatusLabel(status: AttachedPhotoSyncStatus) {
   switch (status) {
     case "pending_nas_match":
-      return "Waiting for NAS backup";
+      return "Waiting for NAS match";
     case "linked_to_nas":
       return "Linked to NAS archive";
     case "local_only":
-      return "Local only";
+      return "Saved on this device";
     case "missing":
-      return "Missing";
+      return "Archive photo unavailable";
     case "preserved_copy":
       return "Preserved copy";
+  }
+}
+
+export function getAttachedPhotoStatusNote(ref: AttachedPhotoRef) {
+  switch (ref.syncStatus) {
+    case "pending_nas_match":
+      return "This photo is attached now and Tiny Chapters will keep trying to match it to your NAS archive.";
+    case "linked_to_nas":
+      return "This memory now points at the NAS archive, so it should stay previewable across devices.";
+    case "local_only":
+      return "This photo only lives on the current device for now, so preview availability may not carry to another phone.";
+    case "missing":
+      return "The archive reference is saved, but the original photo is not reachable right now.";
+    case "preserved_copy":
+      return "Tiny Chapters is using a preserved copy because the original reference is not available.";
+  }
+}
+
+export function getAttachedPhotoSourceLabel(ref: AttachedPhotoRef) {
+  switch (ref.source) {
+    case "nas":
+      return "NAS archive";
+    case "mock":
+      return "Mock source";
+    case "local":
+      return ref.syncStatus === "linked_to_nas" ? "Phone photo (matched to NAS)" : "Phone photo";
   }
 }
 
@@ -46,7 +72,7 @@ export function getAttachedPhotoDisplayName(ref: AttachedPhotoRef) {
 }
 
 export function getAttachedPhotoPreviewUri(ref: AttachedPhotoRef) {
-  if (ref.localUri) {
+  if (ref.localUri && ref.syncStatus !== "linked_to_nas") {
     return ref.localUri;
   }
 
@@ -95,16 +121,16 @@ export function summarizeAttachedPhotoStatuses(refs: AttachedPhotoRef[]) {
     return "No attached photos";
   }
 
+  if (counts.missing > 0) {
+    return `${counts.missing} archive photo${counts.missing === 1 ? "" : "s"} unavailable`;
+  }
+
   if (counts.pending > 0) {
-    return `${counts.pending} waiting for NAS backup`;
+    return `${counts.pending} waiting for NAS match`;
   }
 
   if (counts.localOnly > 0) {
-    return `${counts.localOnly} local only`;
-  }
-
-  if (counts.missing > 0) {
-    return `${counts.missing} missing`;
+    return `${counts.localOnly} saved on this device`;
   }
 
   if (counts.preservedCopy > 0) {

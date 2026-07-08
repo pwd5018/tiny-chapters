@@ -5,9 +5,12 @@ import { Platform } from "react-native";
 import {
   getAppEnvironmentLabel,
   getAppRuntimeLabel,
+  getNasPhotoApiNetworkTarget,
+  getNasPhotoApiNetworkTargetLabel,
   nasPhotoApiBaseUrl,
   nasPhotoApiKey,
   supabaseUrl,
+  type NasPhotoApiNetworkTarget,
 } from "@/config/appConfig";
 import { getCurrentSession, getCurrentUser } from "@/services/auth/authService";
 import {
@@ -24,7 +27,7 @@ import {
   type AppPermissionStatus,
 } from "@/services/permissions/permissionService";
 import { getPhotoDurabilitySummary, retryPendingNasMatches, type NasRelinkSummary } from "@/services/photo/photoRelinkService";
-import { getActivePhotoSourceMode } from "@/services/photo/photoService";
+import { getActivePhotoSourceMode, isNasPhotoMatchingAvailable } from "@/services/photo/photoService";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import { maskToken, maskUrl, maskUserId } from "@/services/diagnostics/masking";
 
@@ -48,6 +51,7 @@ export type DiagnosticsSnapshot = {
     runtimeEnvironment: string;
     photoSourceMode: string;
     nasPhotoApiBaseUrl: string;
+    nasPhotoApiNetworkTarget: string;
     supabaseUrl: string;
     platform: string;
     expoOwnership: string;
@@ -109,7 +113,11 @@ export type IosReadinessDiagnostics = {
   mediaLibraryPermissionStatus: AppPermissionStatus;
   photoSourceMode: string;
   photoApiUrl: string;
+  photoApiNetworkTarget: string;
+  remoteAccessGuidance: string;
   localhostWarning: string | null;
+  lanWarning: string | null;
+  customUrlWarning: string | null;
   insecureHttpWarning: string | null;
   localUriRiskNote: string;
 };
@@ -199,6 +207,21 @@ function isLocalhostHostname(hostname: string) {
   );
 }
 
+function getNasPhotoApiGuidance(target: NasPhotoApiNetworkTarget) {
+  switch (target) {
+    case "localhost":
+      return "Invalid for phone testing. Point the app at the Windows host using LAN or Tailscale instead.";
+    case "lan":
+      return "Best for home-network testing. Switch this same base URL to a Tailscale-reachable host when testing away from home.";
+    case "tailscale":
+      return "Preferred personal remote-access path. Keep the same Photo API and port without opening router ports.";
+    case "custom":
+      return "Allowed, but outside the default LAN or Tailscale setup this phase is optimizing for.";
+    default:
+      return "Configure EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL with a phone-reachable LAN or Tailscale address.";
+  }
+}
+
 export async function isDeveloperModeEnabled() {
   return (await AsyncStorage.getItem(DEVELOPER_MODE_KEY)) === "true";
 }
@@ -226,6 +249,7 @@ export async function disableDeveloperMode() {
 export async function getDiagnosticsSnapshot(): Promise<DiagnosticsSnapshot> {
   const session = isSupabaseConfigured ? await getCurrentSession().catch(() => null) : null;
   const user = isSupabaseConfigured ? await getCurrentUser().catch(() => null) : null;
+  const networkTarget = getNasPhotoApiNetworkTarget();
 
   return {
     app: {
@@ -233,6 +257,7 @@ export async function getDiagnosticsSnapshot(): Promise<DiagnosticsSnapshot> {
       runtimeEnvironment: String(Constants.executionEnvironment ?? "unknown"),
       photoSourceMode: getActivePhotoSourceMode(),
       nasPhotoApiBaseUrl: maskUrl(nasPhotoApiBaseUrl),
+      nasPhotoApiNetworkTarget: getNasPhotoApiNetworkTargetLabel(networkTarget),
       supabaseUrl: maskUrl(supabaseUrl),
       platform: Platform.OS,
       expoOwnership: String(Constants.appOwnership ?? "unknown"),
@@ -262,7 +287,7 @@ async function checkSupabaseReachableForStartup() {
 }
 
 async function checkPhotoApiReachableForStartup() {
-  if (getActivePhotoSourceMode() !== "nas" || !nasPhotoApiBaseUrl) {
+  if (!isNasPhotoMatchingAvailable() || !nasPhotoApiBaseUrl) {
     return null;
   }
 
@@ -605,6 +630,7 @@ export async function getIosReadinessDiagnostics(): Promise<IosReadinessDiagnost
   const parsedUrl = parseUrlSafely(nasPhotoApiBaseUrl);
   const isIos = Platform.OS === "ios";
   const photoSourceMode = getActivePhotoSourceMode();
+  const networkTarget = getNasPhotoApiNetworkTarget();
 
   const [notificationPermissionStatus, cameraPermissionStatus, mediaLibraryPermissionStatus] =
     await Promise.all([
@@ -621,12 +647,22 @@ export async function getIosReadinessDiagnostics(): Promise<IosReadinessDiagnost
     mediaLibraryPermissionStatus,
     photoSourceMode,
     photoApiUrl: nasPhotoApiBaseUrl || "Not configured",
+    photoApiNetworkTarget: getNasPhotoApiNetworkTargetLabel(networkTarget),
+    remoteAccessGuidance: getNasPhotoApiGuidance(networkTarget),
     localhostWarning:
       isIos && parsedUrl && isLocalhostHostname(parsedUrl.hostname)
         ? "This Photo API URL points at localhost, which would refer to the iPhone itself."
         : null,
+    lanWarning:
+      isIos && networkTarget === "lan"
+        ? "This URL looks LAN-only. It should work on the same home network, but not as a remote-away-from-home path."
+        : null,
+    customUrlWarning:
+      isIos && networkTarget === "custom"
+        ? "This URL is outside the default LAN or Tailscale patterns, so verify iPhone reachability directly."
+        : null,
     insecureHttpWarning:
-      isIos && photoSourceMode === "nas" && parsedUrl?.protocol === "http:"
+      isIos && isNasPhotoMatchingAvailable() && parsedUrl?.protocol === "http:"
         ? "NAS mode is using HTTP. Validate iPhone reachability first, then review HTTPS or trusted-network expectations later."
         : null,
     localUriRiskNote:

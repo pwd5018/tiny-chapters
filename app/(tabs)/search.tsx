@@ -1,8 +1,17 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
+import { FadeInView } from "@/components/FadeInView";
 import { MemoryCard } from "@/components/MemoryCard";
+import { ScreenHero } from "@/components/ScreenHero";
 import { useMemoryService } from "@/services/memoryService";
 import { theme } from "@/theme/theme";
 import type { Memory } from "@/types/memory";
@@ -51,46 +60,64 @@ export default function SearchScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.header}>
-        <Text style={styles.title}>Find a memory</Text>
-        <Text style={styles.subtitle}>
-          Search saved memories by text, prompt, tags, or attached photo reference path.
-        </Text>
-      </View>
+      <FadeInView>
+        <ScreenHero
+          eyebrow="Search"
+          title="Find a memory without digging too hard."
+          subtitle="Search saved memories by text, prompt, tags, or attached photo reference path."
+          orbLargeColor="#E8D9C8"
+          orbSmallColor="#DDBFA7"
+        />
+      </FadeInView>
 
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Search memories..."
-        placeholderTextColor={theme.colors.textSoft}
-        style={styles.searchInput}
-      />
+      <FadeInView delay={80}>
+        <View style={styles.searchShell}>
+          <Text style={styles.searchLabel}>Search your archive</Text>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search memories..."
+            placeholderTextColor={theme.colors.textSoft}
+            style={styles.searchInput}
+          />
+        </View>
+      </FadeInView>
 
       {isLoading ? (
-        <View style={styles.stateCard}>
-          <ActivityIndicator color={theme.colors.accent} />
-          <Text style={styles.stateText}>Searching memories...</Text>
-        </View>
+        <FadeInView delay={130}>
+          <View style={styles.stateCard}>
+            <ActivityIndicator color={theme.colors.accent} />
+            <Text style={styles.stateText}>Searching memories...</Text>
+          </View>
+        </FadeInView>
       ) : errorMessage ? (
-        <View style={styles.stateCard}>
-          <Text style={styles.errorText}>{errorMessage}</Text>
-        </View>
+        <FadeInView delay={130}>
+          <View style={styles.stateCard}>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        </FadeInView>
       ) : (
         <>
-          <Text style={styles.resultCount}>
-            {results.length} {results.length === 1 ? "memory" : "memories"}
-          </Text>
+          <FadeInView delay={130}>
+            <Text style={styles.resultCount}>
+              {results.length} {results.length === 1 ? "memory" : "memories"}
+            </Text>
+          </FadeInView>
 
           <View style={styles.list}>
-            {results.map((memory) => (
-              <MemoryCard key={memory.id} memory={memory} />
+            {results.map((memory, index) => (
+              <FadeInView key={memory.id} delay={150 + index * 35} distance={10}>
+                <MemoryCard memory={memory} />
+              </FadeInView>
             ))}
             {!results.length ? (
-              <View style={styles.stateCard}>
-                <Text style={styles.stateText}>
-                  No memories matched. Try a different word, tag, or date fragment.
-                </Text>
-              </View>
+              <FadeInView delay={150}>
+                <View style={styles.stateCard}>
+                  <Text style={styles.stateText}>
+                    No memories matched. Try a different word, tag, or date fragment.
+                  </Text>
+                </View>
+              </FadeInView>
             ) : null}
           </View>
         </>
@@ -103,28 +130,31 @@ const styles = StyleSheet.create({
   content: {
     padding: theme.spacing.lg,
     gap: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl * 2,
   },
-  header: {
+  searchShell: {
+    backgroundColor: "#F6EBDD",
+    borderColor: "#E5D2BE",
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
     gap: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
+    padding: theme.spacing.lg,
   },
-  title: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.hero,
+  searchLabel: {
+    color: theme.colors.textMuted,
+    fontSize: theme.typography.caption,
     fontWeight: "700",
-    lineHeight: 38,
-  },
-  subtitle: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.typography.body,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   searchInput: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radii.md,
+    backgroundColor: "#FFF9F3",
+    borderColor: "#E7D8C8",
+    borderRadius: theme.radii.lg,
     borderWidth: 1,
     color: theme.colors.textPrimary,
     fontSize: theme.typography.body,
+    lineHeight: 22,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
   },
@@ -132,13 +162,14 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     fontSize: theme.typography.caption,
     fontWeight: "600",
+    letterSpacing: 0.2,
   },
   list: {
     gap: theme.spacing.md,
   },
   stateCard: {
     alignItems: "center",
-    backgroundColor: theme.colors.surface,
+    backgroundColor: "#FFF8F1",
     borderColor: theme.colors.border,
     borderRadius: theme.radii.lg,
     borderWidth: 1,

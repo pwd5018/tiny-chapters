@@ -37,6 +37,7 @@ Important:
 - `EXPO_PUBLIC_PHOTO_SOURCE_MODE` is safe to expose.
 - `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL` is safe to expose if you are comfortable sharing the host address.
 - `EXPO_PUBLIC_NAS_PHOTO_API_KEY` is not a real secret once shipped inside a mobile build. Keep it out of git, use it only for personal/dev use, and plan to replace this auth model before any wider distribution.
+- Provider keys for OpenAI, Groq, or Gemini should never go in the Expo app `.env`. Keep them only in `photo-api/.env` because the mobile bundle treats `EXPO_PUBLIC_*` values as public.
 
 ## Environment strategy
 
@@ -53,7 +54,7 @@ Examples:
 
 - LAN
   `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL=http://192.168.1.50:5055`
-- Tailscale later
+- Tailscale
   `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL=http://100.x.x.x:5055`
 - Future cloud
   `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL=https://photo-api.example.com`
@@ -191,6 +192,22 @@ Use USB debugging first if the phone and computer are not reliably reachable ove
 
 Tiny Chapters should point at the host machine or mini-PC address, not `localhost`, when the app runs on a phone.
 
+Phase 12 remote-access stance:
+
+- keep the same Photo API on the Windows host or mini-PC
+- keep port `5055`
+- run Tailscale on both the phone and the Photo API host
+- switch only `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL` between LAN and Tailscale-reachable hostnames or IPs
+- do not open router ports for Tiny Chapters
+- Android remote Photo API access through Tailscale is now confirmed in the current workflow
+
+Example:
+
+- home LAN
+  `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL=http://192.168.1.50:5055`
+- away from home through Tailscale
+  `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL=http://100.101.102.103:5055`
+
 Check the service directly from the host:
 
 ```powershell
@@ -203,8 +220,24 @@ From the app:
 - enable Developer Mode in Settings
 - look at the startup environment banner
 - open `Developer Mode -> Diagnostics`
+- confirm the Photo API network path says `LAN` or `Tailscale` instead of `Localhost only`
 - run `Test NAS /health`
 - run `Test NAS /status`
+
+Important:
+
+- Tailscale remote access for Tiny Chapters is primarily about the Photo API on port `5055`.
+- Metro on port `8081` is only needed when you are actively loading a new JS bundle or using hot reload from the development machine.
+- Leaving `EXPO_DEV_SERVER_HOST` unset is the normal home-network default. The launch script will auto-pick a likely LAN host for Metro.
+
+If you want real AI-guided memory follow-ups or cleanup:
+
+1. open `photo-api/.env`
+2. set `AI_PROVIDER` to `openai`, `groq`, or `gemini`
+3. add the matching provider key and model there
+4. restart `photo-api`
+
+The mobile app reuses the existing local gateway URL and bearer token. Provider secrets remain server-side in `photo-api/.env`.
 
 ## Supabase verification
 
@@ -261,7 +294,7 @@ Later phases should add fuller real-device reminder timing checks, but Phase 7 a
 - Metro starts on the wrong port
   Use the repo scripts instead of raw `expo start`. `npm run dev` and `npm run start:clear` now force `8081`.
 - App cannot reach the Photo API
-  Use a LAN or Tailscale IP, not `localhost`. Also check Windows Firewall for port `5055`.
+  Use a LAN or Tailscale IP, not `localhost`. Also check Windows Firewall for port `5055`, confirm Tailscale is connected on both devices for remote use, and re-check the diagnostics network-path label.
 - Notifications do not fire
   Make sure you are in the Development Build and Android permission is granted.
 - Dev build feels stale after native config changes

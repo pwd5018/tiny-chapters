@@ -11,22 +11,31 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 
 import { DatePickerField } from "@/components/DatePickerField";
-import { getAttachedPhotoSyncStatusLabel } from "@/services/photo/photoDurability";
+import { requestMediaLibraryPermission } from "@/services/permissions/permissionService";
+import {
+  getAttachedPhotoPreviewUri,
+  getAttachedPhotoSourceLabel,
+  getAttachedPhotoStatusNote,
+  getAttachedPhotoSyncStatusLabel,
+} from "@/services/photo/photoDurability";
 import { usePhotoAttachments } from "@/services/photo/photoAttachmentContext";
+import { attemptNasRelinkForRef } from "@/services/photo/photoRelinkService";
 import {
   getActivePhotoSourceMode,
   getFolders,
   getFolderPhotos,
   getPhotoImageSource,
+  isNasPhotoMatchingAvailable,
   loadPhotosForDate,
   searchPhotos,
 } from "@/services/photo/photoService";
 import { theme } from "@/theme/theme";
 import type { AttachedPhotoRef } from "@/types/memory";
-import type { FolderEntry, PhotoAsset } from "@/types/photo";
+import type { FolderEntry, PhotoAsset, PhotoBrowseSource } from "@/types/photo";
 
 const PAGE_SIZE = 50;
 
@@ -34,6 +43,35 @@ type PickerMode = "date" | "search" | "folders";
 
 function toDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function createLocalPhotoId() {
+  return `local:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function parseExifDate(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) {
+    return undefined;
+  }
+
+  const normalized = value
+    .trim()
+    .replace(/^(\d{4}):(\d{2}):(\d{2})/, "$1-$2-$3")
+    .replace(" ", "T");
+  const parsed = new Date(normalized);
+
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+function getAssetTakenAt(asset: ImagePicker.ImagePickerAsset) {
+  const exif = asset.exif as Record<string, unknown> | null | undefined;
+
+  return (
+    parseExifDate(exif?.DateTimeOriginal) ??
+    parseExifDate(exif?.DateTimeDigitized) ??
+    parseExifDate(exif?.DateTime) ??
+    undefined
+  );
 }
 
 function formatDateLabel(date: string) {
@@ -52,9 +90,13 @@ function formatTakenTime(isoString: string) {
 }
 
 function mapProviderPhotoToAttachedRef(photo: PhotoAsset): AttachedPhotoRef {
+  const isDurableNasRef = photo.source === "nas" || photo.source === "mock";
+  const attachedSource: AttachedPhotoRef["source"] =
+    photo.source === "nas" ? "nas" : photo.source === "mock" ? "mock" : "local";
+
   return {
     photoId: photo.id,
-    source: photo.source,
+    source: attachedSource,
     path: photo.path,
     attachedAt: new Date().toISOString(),
     contentHash: photo.contentHash,
@@ -63,7 +105,28 @@ function mapProviderPhotoToAttachedRef(photo: PhotoAsset): AttachedPhotoRef {
     fileSize: photo.fileSize,
     width: photo.width,
     height: photo.height,
-    syncStatus: "linked_to_nas",
+    localUri: photo.source === "device" ? photo.viewUrl : undefined,
+    syncStatus: isDurableNasRef
+      ? "linked_to_nas"
+      : isNasPhotoMatchingAvailable()
+        ? "pending_nas_match"
+        : "local_only",
+  };
+}
+
+function mapPickerAssetToAttachedRef(asset: ImagePicker.ImagePickerAsset): AttachedPhotoRef {
+  return {
+    photoId: createLocalPhotoId(),
+    source: "local",
+    path: asset.uri,
+    attachedAt: new Date().toISOString(),
+    filename: asset.fileName ?? undefined,
+    takenAt: getAssetTakenAt(asset),
+    fileSize: asset.fileSize ?? undefined,
+    width: asset.width,
+    height: asset.height,
+    localUri: asset.uri,
+    syncStatus: isNasPhotoMatchingAvailable() ? "pending_nas_match" : "local_only",
   };
 }
 
@@ -117,7 +180,15 @@ function ThumbnailCell({ photo, isSelected, onToggle, onPreview }: ThumbnailCell
 
 export default function PhotoPickerScreen() {
   const router = useRouter();
-  const activePhotoSourceMode = getActivePhotoSourceMode();
+  const params = useLocalSearchParams<{ source?: string }>();
+  const configuredPhotoSourceMode = getActivePhotoSourceMode();
+  const initialSource: PhotoBrowseSource =
+    params.source === "nas" || params.source === "device"
+      ? params.source
+      : configuredPhotoSourceMode === "nas"
+        ? "nas"
+        : "device";
+  const [source, setSource] = useState<PhotoBrowseSource>(initialSource);
   const [mode, setMode] = useState<PickerMode>("date");
   const [selectedDate, setSelectedDate] = useState(toDateKey(new Date()));
   const [datePhotos, setDatePhotos] = useState<PhotoAsset[]>([]);
@@ -144,9 +215,22 @@ export default function PhotoPickerScreen() {
   const [isFolderLoadingMore, setIsFolderLoadingMore] = useState(false);
 
   const [previewPhoto, setPreviewPhoto] = useState<PhotoAsset | null>(null);
-  const { selectedAttachments, toggleAttachment } = usePhotoAttachments();
+  const [isLaunchingDeviceLibrary, setIsLaunchingDeviceLibrary] = useState(false);
+  const [deviceMessage, setDeviceMessage] = useState(
+    "Choose from your phone without leaving the shared photo picker."
+  );
+  const {
+    selectedAttachments,
+    toggleAttachment,
+    addAttachment,
+    removeAttachment,
+  } = usePhotoAttachments();
 
   useEffect(() => {
+    if (source !== "nas") {
+      return;
+    }
+
     let isActive = true;
 
     async function loadDateModePhotos() {
@@ -162,8 +246,10 @@ export default function PhotoPickerScreen() {
 
         setDatePhotos(result.photos);
 
-        if (!result.ok && activePhotoSourceMode === "nas") {
+        if (!result.ok) {
           setDateMessage("Unable to reach Photo API.");
+        } else if (result.message) {
+          setDateMessage(result.message);
         } else if (!result.photos.length) {
           setDateMessage("No photos found for this day.");
         } else {
@@ -181,10 +267,10 @@ export default function PhotoPickerScreen() {
     return () => {
       isActive = false;
     };
-  }, [activePhotoSourceMode, selectedDate]);
+  }, [selectedDate, source]);
 
   useEffect(() => {
-    if (mode !== "folders") {
+    if (source !== "nas" || mode !== "folders") {
       return;
     }
 
@@ -236,7 +322,7 @@ export default function PhotoPickerScreen() {
     return () => {
       isActive = false;
     };
-  }, [folderPath, mode]);
+  }, [folderPath, mode, source]);
 
   const activePhotos = useMemo(() => {
     if (mode === "search") {
@@ -250,12 +336,40 @@ export default function PhotoPickerScreen() {
     return datePhotos;
   }, [datePhotos, folderItems, mode, searchItems]);
 
-  const isLoading = mode === "date" ? isDateLoading : mode === "search" ? isSearchLoading : isFolderLoading;
+  const isLoading =
+    source !== "nas"
+      ? false
+      : mode === "date"
+        ? isDateLoading
+        : mode === "search"
+          ? isSearchLoading
+          : isFolderLoading;
   const isLoadingMore =
-    mode === "search" ? isSearchLoadingMore : mode === "folders" ? isFolderLoadingMore : false;
-  const message = mode === "date" ? dateMessage : mode === "search" ? searchMessage : folderMessage;
-  const hasMore = mode === "search" ? searchHasMore : mode === "folders" ? folderHasMore : false;
-  const totalCount = mode === "search" ? searchTotal : mode === "folders" ? folderTotal : activePhotos.length;
+    source !== "nas"
+      ? false
+      : mode === "search"
+        ? isSearchLoadingMore
+        : mode === "folders"
+          ? isFolderLoadingMore
+          : false;
+  const message =
+    source !== "nas"
+      ? deviceMessage
+      : mode === "date"
+        ? dateMessage
+        : mode === "search"
+          ? searchMessage
+          : folderMessage;
+  const hasMore =
+    source !== "nas" ? false : mode === "search" ? searchHasMore : mode === "folders" ? folderHasMore : false;
+  const totalCount =
+    source !== "nas"
+      ? selectedAttachments.length
+      : mode === "search"
+        ? searchTotal
+        : mode === "folders"
+          ? folderTotal
+          : activePhotos.length;
   const selectedCountForLoadedPhotos = useMemo(
     () =>
       activePhotos.filter((photo) =>
@@ -315,14 +429,69 @@ export default function PhotoPickerScreen() {
     }
   };
 
+  const handleOpenDeviceLibrary = async () => {
+    setIsLaunchingDeviceLibrary(true);
+    setDeviceMessage("");
+
+    try {
+      const permission = await requestMediaLibraryPermission();
+
+      if (permission !== "granted" && permission !== "limited") {
+        setDeviceMessage("Photo library permission is needed before Tiny Chapters can browse phone photos.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: false,
+        allowsMultipleSelection: true,
+        exif: true,
+        mediaTypes: ["images"],
+        quality: 1,
+        selectionLimit: 10,
+      });
+
+      if (result.canceled || !result.assets.length) {
+        setDeviceMessage("No phone photos were selected.");
+        return;
+      }
+
+      const nextAttachments = await Promise.all(
+        result.assets.map(async (asset) => attemptNasRelinkForRef(mapPickerAssetToAttachedRef(asset)))
+      );
+
+      nextAttachments.forEach((attachment) => addAttachment(attachment));
+
+      const matchedCount = nextAttachments.filter(
+        (attachment) => attachment.syncStatus === "linked_to_nas"
+      ).length;
+
+      setDeviceMessage(
+        matchedCount
+          ? `${matchedCount} phone photo${matchedCount === 1 ? "" : "s"} matched the NAS archive right away.`
+          : "Phone photos were added here and will stay as local references until a NAS match is found."
+      );
+    } catch (error) {
+      setDeviceMessage(
+        error instanceof Error ? error.message : "Could not open the phone photo library."
+      );
+    } finally {
+      setIsLaunchingDeviceLibrary(false);
+    }
+  };
+
   const breadcrumbParts = useMemo(() => folderPath.split("/").filter(Boolean), [folderPath]);
+
+  const selectedDeviceAttachments = useMemo(
+    () => selectedAttachments.filter((attachment) => attachment.source === "local"),
+    [selectedAttachments]
+  );
 
   return (
     <SafeAreaView style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <FlatList
-        data={activePhotos}
+        data={source === "nas" ? activePhotos : []}
         keyExtractor={(item) => item.id}
         numColumns={2}
         columnWrapperStyle={styles.gridRow}
@@ -330,25 +499,27 @@ export default function PhotoPickerScreen() {
         ListHeaderComponent={
           <View style={styles.headerBlock}>
             <View style={styles.header}>
-              <Text style={styles.title}>Attach from NAS</Text>
+              <Text style={styles.title}>Add Photos</Text>
               <Text style={styles.subtitle}>
-                Browse by day, search the index, or drill through folders without copying any photos into the app.
+                Choose from your phone or your archive without leaving the writing flow.
               </Text>
             </View>
 
-            <View style={styles.modeTabs}>
+            <View style={styles.sourceTabs}>
               {([
-                ["date", "By Date"],
-                ["search", "Search"],
-                ["folders", "Folders"],
-              ] as const).map(([nextMode, label]) => (
+                ["device", "Device"],
+                ["nas", "NAS"],
+              ] as const).map(([nextSource, label]) => (
                 <Pressable
-                  key={nextMode}
-                  style={[styles.modeTab, mode === nextMode && styles.modeTabActive]}
-                  onPress={() => setMode(nextMode)}
+                  key={nextSource}
+                  style={[styles.sourceTab, source === nextSource && styles.sourceTabActive]}
+                  onPress={() => setSource(nextSource)}
                 >
                   <Text
-                    style={[styles.modeTabText, mode === nextMode && styles.modeTabTextActive]}
+                    style={[
+                      styles.sourceTabText,
+                      source === nextSource && styles.sourceTabTextActive,
+                    ]}
                   >
                     {label}
                   </Text>
@@ -356,112 +527,194 @@ export default function PhotoPickerScreen() {
               ))}
             </View>
 
-            <View style={styles.toolbar}>
-              {mode === "date" ? (
-                <>
-                  <DatePickerField
-                    value={selectedDate}
-                    onChange={setSelectedDate}
-                    helperText="Pick a day and Tiny Chapters will load that day's indexed photos."
-                  />
-                  <Text style={styles.dateLabel}>Showing {formatDateLabel(selectedDate)}</Text>
-                </>
-              ) : null}
-
-              {mode === "search" ? (
-                <>
-                  <TextInput
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder="Search filename or path"
-                    placeholderTextColor={theme.colors.textSoft}
-                    style={styles.searchInput}
-                  />
-                  <DatePickerField
-                    value={selectedDate}
-                    onChange={setSelectedDate}
-                    helperText="Optional day filter for narrowing search results."
-                  />
-                  <Pressable
-                    style={styles.toggleRow}
-                    onPress={() => setSearchUsesDate((current) => !current)}
-                  >
-                    <View
-                      style={[
-                        styles.togglePill,
-                        searchUsesDate && styles.togglePillActive,
-                      ]}
-                    />
-                    <Text style={styles.toggleText}>
-                      Limit search to {formatDateLabel(selectedDate)}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.primaryInlineButton}
-                    onPress={() => void runSearch(false)}
-                  >
-                    <Text style={styles.primaryInlineButtonText}>Search Library</Text>
-                  </Pressable>
-                </>
-              ) : null}
-
-              {mode === "folders" ? (
-                <>
-                  <Text style={styles.sectionCaption}>Browse indexed folders</Text>
-                  <View style={styles.breadcrumbRow}>
-                    <Pressable
-                      style={styles.breadcrumbChip}
-                      onPress={() => setFolderPath("")}
-                    >
-                      <Text style={styles.breadcrumbChipText}>Root</Text>
-                    </Pressable>
-                    {breadcrumbParts.map((part, index) => {
-                      const nextPath = breadcrumbParts.slice(0, index + 1).join("/");
+            {source === "device" ? (
+              <View style={styles.toolbar}>
+                <Text style={styles.sectionCaption}>Choose from your phone</Text>
+                <Text style={styles.deviceHint}>
+                  Open the phone library here, then come back with your selections already attached.
+                </Text>
+                <Pressable
+                  style={styles.primaryInlineButton}
+                  onPress={() => void handleOpenDeviceLibrary()}
+                  disabled={isLaunchingDeviceLibrary}
+                >
+                  {isLaunchingDeviceLibrary ? (
+                    <ActivityIndicator color={theme.colors.buttonText} />
+                  ) : (
+                    <Text style={styles.primaryInlineButtonText}>Choose Phone Photos</Text>
+                  )}
+                </Pressable>
+                <Text style={styles.totalCount}>
+                  {selectedDeviceAttachments.length} phone photo
+                  {selectedDeviceAttachments.length === 1 ? "" : "s"} selected
+                </Text>
+                {message ? <Text style={styles.deviceMessage}>{message}</Text> : null}
+                {selectedDeviceAttachments.length ? (
+                  <View style={styles.deviceSelectionList}>
+                    {selectedDeviceAttachments.map((attachment) => {
+                      const previewUri = getAttachedPhotoPreviewUri(attachment);
                       return (
-                        <Pressable
-                          key={nextPath}
-                          style={styles.breadcrumbChip}
-                          onPress={() => setFolderPath(nextPath)}
-                        >
-                          <Text style={styles.breadcrumbChipText}>{part}</Text>
-                        </Pressable>
+                        <View key={attachment.photoId} style={styles.deviceSelectionCard}>
+                          {previewUri ? (
+                            <Image
+                              source={getPhotoImageSource(previewUri)}
+                              style={styles.deviceSelectionPreview}
+                            />
+                          ) : (
+                            <View style={styles.selectedPreviewFallback}>
+                              <Text style={styles.selectedPreviewFallbackText}>No preview</Text>
+                            </View>
+                          )}
+                          <View style={styles.deviceSelectionCopy}>
+                            <Text style={styles.photoFilename} numberOfLines={1}>
+                              {attachment.filename ?? "Phone photo"}
+                            </Text>
+                            <Text style={styles.photoTime}>
+                              {getAttachedPhotoSyncStatusLabel(attachment.syncStatus)}
+                            </Text>
+                            <Text style={styles.deviceSelectionNote} numberOfLines={2}>
+                              {getAttachedPhotoStatusNote(attachment)}
+                            </Text>
+                          </View>
+                          <Pressable
+                            style={styles.removeDeviceButton}
+                            onPress={() => removeAttachment(attachment.photoId, attachment.source)}
+                          >
+                            <Text style={styles.removeDeviceButtonText}>Remove</Text>
+                          </Pressable>
+                        </View>
                       );
                     })}
                   </View>
-                  {folderParentPath !== null ? (
+                ) : null}
+              </View>
+            ) : (
+              <>
+                <View style={styles.modeTabs}>
+                  {([
+                    ["date", "By Date"],
+                    ["search", "Search"],
+                    ["folders", "Folders"],
+                  ] as const).map(([nextMode, label]) => (
                     <Pressable
-                      style={styles.secondaryInlineButton}
-                      onPress={() => setFolderPath(folderParentPath ?? "")}
+                      key={nextMode}
+                      style={[styles.modeTab, mode === nextMode && styles.modeTabActive]}
+                      onPress={() => setMode(nextMode)}
                     >
-                      <Text style={styles.secondaryInlineButtonText}>Back Up One Folder</Text>
+                      <Text
+                        style={[styles.modeTabText, mode === nextMode && styles.modeTabTextActive]}
+                      >
+                        {label}
+                      </Text>
                     </Pressable>
-                  ) : null}
-                  {folderEntries.length ? (
-                    <View style={styles.folderList}>
-                      {folderEntries.map((entry) => (
-                        <Pressable
-                          key={entry.path}
-                          style={styles.folderRow}
-                          onPress={() => setFolderPath(entry.path)}
-                        >
-                          <Text style={styles.folderName}>{entry.name}</Text>
-                          <Text style={styles.folderPath}>{entry.path}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  ) : null}
-                </>
-              ) : null}
+                  ))}
+                </View>
 
-              <Text style={styles.selectedCount}>
-                {selectedCountForLoadedPhotos} selected on this screen
-              </Text>
-              <Text style={styles.totalCount}>Showing {activePhotos.length} of {totalCount}</Text>
-            </View>
+                <View style={styles.toolbar}>
+                  {mode === "date" ? (
+                    <>
+                      <DatePickerField
+                        value={selectedDate}
+                        onChange={setSelectedDate}
+                        helperText="Pick a day and Tiny Chapters will load that day's indexed photos."
+                      />
+                      <Text style={styles.dateLabel}>Showing {formatDateLabel(selectedDate)}</Text>
+                    </>
+                  ) : null}
+
+                  {mode === "search" ? (
+                    <>
+                      <TextInput
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        placeholder="Search filename or path"
+                        placeholderTextColor={theme.colors.textSoft}
+                        style={styles.searchInput}
+                      />
+                      <DatePickerField
+                        value={selectedDate}
+                        onChange={setSelectedDate}
+                        helperText="Optional day filter for narrowing search results."
+                      />
+                      <Pressable
+                        style={styles.toggleRow}
+                        onPress={() => setSearchUsesDate((current) => !current)}
+                      >
+                        <View
+                          style={[
+                            styles.togglePill,
+                            searchUsesDate && styles.togglePillActive,
+                          ]}
+                        />
+                        <Text style={styles.toggleText}>
+                          Limit search to {formatDateLabel(selectedDate)}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.primaryInlineButton}
+                        onPress={() => void runSearch(false)}
+                      >
+                        <Text style={styles.primaryInlineButtonText}>Search Library</Text>
+                      </Pressable>
+                    </>
+                  ) : null}
+
+                  {mode === "folders" ? (
+                    <>
+                      <Text style={styles.sectionCaption}>Browse indexed folders</Text>
+                      <View style={styles.breadcrumbRow}>
+                        <Pressable style={styles.breadcrumbChip} onPress={() => setFolderPath("")}>
+                          <Text style={styles.breadcrumbChipText}>Root</Text>
+                        </Pressable>
+                        {breadcrumbParts.map((part, index) => {
+                          const nextPath = breadcrumbParts.slice(0, index + 1).join("/");
+                          return (
+                            <Pressable
+                              key={nextPath}
+                              style={styles.breadcrumbChip}
+                              onPress={() => setFolderPath(nextPath)}
+                            >
+                              <Text style={styles.breadcrumbChipText}>{part}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      {folderParentPath !== null ? (
+                        <Pressable
+                          style={styles.secondaryInlineButton}
+                          onPress={() => setFolderPath(folderParentPath ?? "")}
+                        >
+                          <Text style={styles.secondaryInlineButtonText}>Back Up One Folder</Text>
+                        </Pressable>
+                      ) : null}
+                      {folderEntries.length ? (
+                        <View style={styles.folderList}>
+                          {folderEntries.map((entry) => (
+                            <Pressable
+                              key={entry.path}
+                              style={styles.folderRow}
+                              onPress={() => setFolderPath(entry.path)}
+                            >
+                              <Text style={styles.folderName}>{entry.name}</Text>
+                              <Text style={styles.folderPath}>{entry.path}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ) : null}
+                    </>
+                  ) : null}
+
+                  <Text style={styles.selectedCount}>
+                    {selectedCountForLoadedPhotos} selected on this screen
+                  </Text>
+                  <Text style={styles.totalCount}>Showing {activePhotos.length} of {totalCount}</Text>
+                </View>
+              </>
+            )}
           </View>
         }
         ListEmptyComponent={
-          isLoading ? (
+          source === "device" ? null : isLoading ? (
             <View style={styles.stateCard}>
               <ActivityIndicator color={theme.colors.accent} />
               <Text style={styles.stateText}>Loading photos...</Text>
@@ -474,7 +727,7 @@ export default function PhotoPickerScreen() {
         }
         ListFooterComponent={
           <View style={styles.footerBlock}>
-            {hasMore ? (
+            {source === "nas" && hasMore ? (
               <Pressable
                 style={styles.loadMoreButton}
                 onPress={() => {
@@ -538,7 +791,7 @@ export default function PhotoPickerScreen() {
               <Image source={getPhotoImageSource(previewPhoto.viewUrl)} style={styles.modalImage} />
             ) : null}
             <Text style={styles.modalStatus}>
-              {previewPhoto ? getAttachedPhotoSyncStatusLabel("linked_to_nas") : ""}
+              {previewPhoto ? "Linked to NAS archive" : ""}
             </Text>
             <Pressable style={styles.primaryButton} onPress={() => setPreviewPhoto(null)}>
               <Text style={styles.primaryButtonText}>Close</Text>
@@ -578,6 +831,31 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.body,
     lineHeight: 22,
   },
+  sourceTabs: {
+    backgroundColor: "#F5E7D4",
+    borderColor: "#E4D1B8",
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    flexDirection: "row",
+    padding: 4,
+  },
+  sourceTab: {
+    alignItems: "center",
+    borderRadius: theme.radii.pill,
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+  },
+  sourceTabActive: {
+    backgroundColor: "#A65940",
+  },
+  sourceTabText: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body,
+    fontWeight: "700",
+  },
+  sourceTabTextActive: {
+    color: theme.colors.buttonText,
+  },
   modeTabs: {
     backgroundColor: theme.colors.surface,
     borderColor: theme.colors.border,
@@ -610,6 +888,52 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: theme.spacing.sm,
     padding: theme.spacing.lg,
+  },
+  deviceHint: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body,
+    lineHeight: 22,
+  },
+  deviceMessage: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption,
+    lineHeight: 18,
+  },
+  deviceSelectionList: {
+    gap: theme.spacing.sm,
+  },
+  deviceSelectionCard: {
+    alignItems: "center",
+    backgroundColor: theme.colors.input,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    padding: theme.spacing.sm,
+  },
+  deviceSelectionPreview: {
+    borderRadius: theme.radii.md,
+    height: 56,
+    width: 56,
+  },
+  deviceSelectionCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  deviceSelectionNote: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  removeDeviceButton: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  removeDeviceButtonText: {
+    color: "#B44D47",
+    fontSize: theme.typography.caption,
+    fontWeight: "700",
   },
   searchInput: {
     backgroundColor: theme.colors.input,
@@ -856,6 +1180,19 @@ const styles = StyleSheet.create({
     color: theme.colors.buttonText,
     fontSize: theme.typography.body,
     fontWeight: "700",
+  },
+  selectedPreviewFallback: {
+    alignItems: "center",
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
+    height: 56,
+    justifyContent: "center",
+    width: 56,
+  },
+  selectedPreviewFallbackText: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    fontWeight: "600",
   },
   modalOverlay: {
     alignItems: "center",

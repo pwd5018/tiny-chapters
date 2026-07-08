@@ -2,6 +2,8 @@
 
 This local service indexes photos from a NAS shared folder and exposes the LAN API that Tiny Chapters mobile can call.
 
+It can also act as the local AI gateway for guided memory follow-ups and optional cleanup or polish suggestions, so provider keys stay on the server side instead of inside the Expo mobile bundle.
+
 ## Install
 
 ```powershell
@@ -22,11 +24,19 @@ SCHEDULED_SCAN_TIME=02:00
 SCHEDULED_SCAN_TIMEZONE=America/New_York
 THUMBNAIL_CACHE_DIR=./cache/thumbnails
 DATABASE_PATH=./data/photo-index.sqlite
+AI_PROVIDER=openai
+OPENAI_API_KEY=your-openai-key
+OPENAI_MODEL=your-openai-model-id
 ```
 
 Supported roots:
 - UNC path: `\\\\NAS_NAME\\Photos`
 - mapped drive: `Z:\\Photos`
+
+AI provider notes:
+- `AI_PROVIDER` may be `openai`, `groq`, or `gemini`
+- keep provider API keys only in `photo-api/.env`
+- do not add provider secrets to the Expo app `.env` because `EXPO_PUBLIC_*` values are bundled into the mobile app
 
 ## Commands
 
@@ -88,6 +98,12 @@ Status with auth:
 curl -H "Authorization: Bearer change-me" http://localhost:5055/status
 ```
 
+AI status with auth:
+
+```powershell
+curl -H "Authorization: Bearer change-me" http://localhost:5055/ai/status
+```
+
 Trigger scan with auth:
 
 ```powershell
@@ -110,6 +126,18 @@ Match a likely NAS photo by metadata:
 
 ```powershell
 curl -H "Authorization: Bearer change-me" "http://localhost:5055/photos/match?filename=IMG_4432.jpg&takenAt=2026-06-17T14:22:00.000Z&fileSize=3442231&width=4032&height=3024"
+```
+
+Generate guided follow-up questions with auth:
+
+```powershell
+curl -X POST -H "Authorization: Bearer change-me" -H "Content-Type: application/json" -d "{\"baseQuestion\":\"What tiny moment felt worth keeping?\",\"originalAnswer\":\"He wore the blue shirt and looked tired.\"}" http://localhost:5055/ai/follow-ups
+```
+
+Generate a polished memory suggestion with auth:
+
+```powershell
+curl -X POST -H "Authorization: Bearer change-me" -H "Content-Type: application/json" -d "{\"baseQuestion\":\"What tiny moment felt worth keeping?\",\"originalAnswer\":\"He wore the blue shirt and looked tired.\",\"composedText\":\"He wore the blue shirt and looked tired.\",\"followUps\":[\"He still smiled at dinner.\"]}" http://localhost:5055/ai/polish
 ```
 
 ## Built-in scheduled scans
@@ -212,7 +240,7 @@ Important:
 ## Notes
 
 - `/health` does not require auth.
-- All other routes require `Authorization: Bearer <PHOTO_API_KEY>`.
+- All other routes, including `/ai/*`, require `Authorization: Bearer <PHOTO_API_KEY>`.
 - Open Windows Firewall for port `5055` if testing from a phone.
 - From an Android phone, use the PC or mini-PC LAN IP, not `localhost`.
 - This service can later move from a laptop to a mini PC without changing the mobile app architecture.

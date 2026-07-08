@@ -14,7 +14,7 @@ Future AI coding agents and maintainers should read these first:
 
 These files are the canonical startup context and should be updated after each completed phase or meaningful architecture, data model, or roadmap change.
 
-## Phase 8 status
+## Current product status
 
 Current state:
 - Expo mobile shell with tab navigation
@@ -31,11 +31,16 @@ Current state:
 - Developer-only startup environment banner and startup diagnostics
 - Centralized permission helpers for notifications, camera, and photo-library access
 - iOS readiness diagnostics for bundle id, permission states, Photo API URL, and future NAS warning checks
-- Today, Timeline, Search, and Settings screens working against service abstractions
+- Lighter Today dashboard with real On This Day resurfacing and daily prompt guidance
+- Dedicated `write` route as the single primary memory-composition path
+- Moments tab as the home for archive browsing and stats
+- Redesigned visual baseline across Today, Moments, Search, and Write with calmer hierarchy and warmer editorial cards/forms
+- Today, Moments, Search, and Settings screens working against service abstractions
 - Native Android project available for emulator/device work when needed
 
 Not implemented yet:
 - Full iPhone validation, generated `ios/` project work, or TestFlight readiness
+- Guided AI memory questions
 - AI cleanup
 - Export flow
 - Device photo library browsing as a primary archive source
@@ -140,6 +145,9 @@ npm run start:clear
 - `src/services/photo/photoRelinkService.ts` holds the placeholder relink seam for future NAS matching
 - `app/photo-picker.tsx` provides the dedicated NAS selection flow for durable photo refs, with paged date, search, and folder modes
 - `app/memory/[id].tsx` handles memory detail, edit, delete, and attachment management
+- `app/write.tsx` and `src/features/write/WriteMemoryScreen.tsx` own the single focused writing/composition flow
+- `src/features/dashboard/` owns Today card composition and rendering
+- `src/components/ScreenHero.tsx` provides the shared redesigned hero pattern used across the main non-Today screens
 - `src/services/notifications/reminderService.ts` owns local reminder settings, schedule management, and Android-only notification-channel setup
 - `src/services/permissions/permissionService.ts` centralizes notification, camera, and media-library permission requests and status checks
 - `src/services/diagnostics/diagnosticsService.ts` centralizes developer-only diagnostics, safe masking, iOS readiness checks, and recent diagnostic event logging
@@ -147,6 +155,13 @@ npm run start:clear
 - `src/types/` defines domain models for memories and photos
 
 The screens talk to services, and the services hide how data is actually stored. That keeps the UI steady when we later swap mock storage for Supabase or add a real NAS-backed photo index.
+
+Current IA baseline:
+
+- Today is intentionally light and card-driven
+- Write is the single composition path
+- Moments owns archive browsing plus stats
+- Search is for lookup, not primary browsing
 
 Reminder settings are device-local for now:
 
@@ -336,27 +351,37 @@ Future NAS picker improvements:
 - backend filename/date search
 - optional local thumbnail cache if it ever becomes necessary
 
+## Current UX flow
+
+1. Open Today to see the date, daily prompt guidance, and On This Day resurfacing.
+2. Start writing from the Today dashboard prompt card.
+3. Use the dedicated Write screen for the actual memory composition flow.
+4. Add photos only when they help the memory, using the collapsed photo section in Write.
+5. Use Moments for archive browsing and stats.
+6. Use Search when you already have something specific in mind.
+
 ## Android camera capture test
 
 1. Run both Supabase migrations.
-2. Start the app with `npm start`.
+2. Start the app with `npm run dev`.
 3. Open Today on Android.
-4. Tap `Take Photo` or `Attach from Phone`.
-5. Grant permission when prompted.
-6. Save a memory with that attachment.
-7. Open Timeline and confirm the memory shows attached photo status, including waiting for NAS backup for local refs.
+4. Open the Write flow from the Today dashboard.
+5. Expand the Photos section and tap `Take Photo` or `Phone Photos`.
+6. Grant permission when prompted.
+7. Save a memory with that attachment.
+8. Open Moments and confirm the memory shows attached photo status, including waiting for NAS backup for local refs.
 
 To test immediate NAS relink, use a phone photo that has already been backed up and indexed by the Photo API, then attach it from the phone and confirm it saves as `Linked to NAS archive` instead of waiting.
 
 ## Memory detail edit and delete test
 
-1. Save a memory from Today with at least one attachment.
-2. Open it from Timeline and confirm the detail route shows the date, prompt, text, tags, thumbnails, and sync labels.
+1. Save a memory from Write with at least one attachment.
+2. Open it from Moments and confirm the detail route shows the date, prompt, text, tags, thumbnails, and sync labels.
 3. Tap `Edit Memory`, change the date, prompt, text, and comma-separated tags, then save.
 4. Re-open the same memory from Search and confirm those edits are reflected there too.
 5. In edit mode, tap `Add Photos`, select more NAS photos, tap `Done`, and save.
 6. Remove one attached photo reference, save again, and confirm the original NAS file still exists outside the app.
-7. Tap `Delete Memory`, confirm the warning, and verify the app returns to Timeline with the memory gone.
+7. Tap `Delete Memory`, confirm the warning, and verify the app returns to Moments with the memory gone.
 8. Search for the deleted memory text and confirm it no longer appears.
 
 ## Pending NAS relink test

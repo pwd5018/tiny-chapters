@@ -207,7 +207,7 @@ export async function attemptNasRelinkForRef(ref: AttachedPhotoRef): Promise<Att
       fileSize: matchedPhoto.fileSize,
       width: matchedPhoto.width,
       height: matchedPhoto.height,
-      localUri: ref.localUri,
+      localUri: undefined,
       syncStatus: "linked_to_nas",
     };
   } catch {

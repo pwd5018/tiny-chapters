@@ -5,7 +5,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DeveloperEnvironmentBanner } from "@/components/DeveloperEnvironmentBanner";
 import { theme } from "@/theme/theme";
 
-type TabIconName = "sunny-outline" | "albums-outline" | "search-outline" | "settings-outline";
+type TabIconName =
+  | "sunny-outline"
+  | "albums-outline"
+  | "search-outline"
+  | "settings-outline";
 
 function TabIcon({ name, color }: { name: TabIconName; color: string }) {
   return <Ionicons name={name} size={20} color={color} />;
@@ -30,7 +34,7 @@ export default function TabsLayout() {
             fontWeight: "700",
           },
           tabBarStyle: {
-            backgroundColor: theme.colors.surface,
+            backgroundColor: "#FFF8F1",
             borderTopColor: theme.colors.border,
             height: 56 + bottomInset,
             paddingTop: 6,
@@ -41,6 +45,7 @@ export default function TabsLayout() {
           tabBarLabelStyle: {
             fontSize: theme.typography.caption,
             fontWeight: "600",
+            letterSpacing: 0.2,
           },
           sceneStyle: {
             backgroundColor: theme.colors.background,
@@ -57,7 +62,7 @@ export default function TabsLayout() {
         <Tabs.Screen
           name="timeline"
           options={{
-            title: "Timeline",
+            title: "Moments",
             tabBarIcon: ({ color }) => <TabIcon name="albums-outline" color={color} />,
           }}
         />

@@ -6,19 +6,26 @@ Read this file, [ARCHITECTURE.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\
 
 Tiny Chapters is a private memory capsule and journal app for capturing small family moments. The mobile app stores auth, memory text, tags, and photo reference metadata in Supabase. Original photos stay outside Supabase. In the current personal workflow, a separate local Photo API indexes a Windows-accessible NAS share and serves metadata, thumbnails, and view URLs to the app.
 
-## Current status after Phase 8
+## Current status after Phase 12
 
 Implemented in the repo now:
 
-- Expo Router mobile app with Today, Timeline, Search, and Settings flows
+- Expo Router mobile app with a lighter Today dashboard, dedicated `write` composition route, Moments browsing/stats tab, Search, and Settings flows
+- Today screen dashboard foundation with modular card types, async card service plumbing, reusable dashboard rendering, real On This Day resurfacing, and richer daily prompt guidance
+- Redesigned UI baseline with a slimmed Today header, calmer dashboard hierarchy, shared hero treatment across main screens, and warmer editorial card/form styling
+- Guided-memory write-state that preserves the base daily question, original answer, follow-up slots, and composed memory text as separate draft concepts inside the dedicated Write flow
+- AI-capable write flow inside the dedicated Write route, using the local gateway in `photo-api/` when configured and falling back gracefully to deterministic local helpers when it is not
+- Optional cleanup seam inside the dedicated Write route that keeps a separate polished short-form suggestion instead of overwriting the rough draft by default
+- Saved memories can now persist guided context in Supabase through `memories.guided_context`, while still keeping the main saved memory in `memories.text`
 - Supabase Auth plus Supabase-backed `memories` and `memory_photo_refs`
 - Service-layer boundaries for auth, memories, photos, reminders, diagnostics, and permissions
-- Mock and NAS photo provider modes behind `photoService`
+- Mock, NAS, and device-aware photo source handling behind `photoService`
 - Standalone `photo-api/` service with bearer auth, SQLite index, scan history, root checks, scheduled scans, thumbnails, and metadata matching
-- NAS photo picker with By Date, Search, and Folders modes, paging, multi-select, preview, and native date picker
+- Shared photo picker with `Device | NAS` source tabs, native phone-library selection, and NAS By Date / Search / Folders browsing
 - Memory detail edit, delete, and attachment-management flows
 - Local phone photo attachments saved as metadata-only refs with conservative NAS relink support
 - App-start relink retry, memory-detail relink retry, and Settings manual retry
+- Saved-memory attachment states now distinguish device-only, pending NAS match, and NAS-linked behavior more clearly, and NAS-linked refs now prefer archive-backed preview paths instead of stale temporary device URIs
 - Local reminder engine using `expo-notifications` and AsyncStorage
 - Hidden Developer Mode and Diagnostics screen
 - Installed Expo Development Build workflow with `expo-dev-client`
@@ -26,16 +33,24 @@ Implemented in the repo now:
 - Developer-only startup environment banner and startup diagnostics
 - Centralized permission helpers for notifications, camera, and photo-library access
 - iOS readiness diagnostics for bundle id, permission status, Photo API URL, and NAS warning checks
+- Tailscale-aware Photo API diagnostics and centralized LAN vs Tailscale URL switching through `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL`
 - Phase 8 documentation for Development Setup and iOS readiness
 
 Not implemented yet:
 
 - Real iPhone validation, generated `ios/` project work, and TestFlight readiness
-- Device photo library provider as a first-class source mode
-- On This Day resurfacing
-- Guided AI memory questions
+- AI-generated Today follow-up questions
+- Dashboard photo thumbnails inside On This Day cards
+- NAS or device-photo dashboard suggestions
+- Advanced stats expansions beyond the current totals, monthly count, and streak summary that live on the Moments tab
 - Export flows
 - Product-mode cloud photo preservation
+
+Current next-phase plan:
+
+- Phase 13 is Export.
+- The expected implementation should add a personal, readable export path first, likely starting with JSON and Markdown before later PDF/book-style output.
+- Keep the current storage model intact: export should reflect memories and reference metadata clearly without turning this phase into cloud photo storage or a broad sync rewrite.
 
 ## Tech stack
 
@@ -108,6 +123,11 @@ Photo API:
 - Preserve the provider/service abstraction. Screens should stay thin.
 - Keep platform-aware permission and notification behavior in services or shared components rather than scattering new `Platform.OS` checks through screens.
 - Keep NAS support optional and product-friendly rather than hard-wiring the whole app to a single home setup.
+- Keep the Today dashboard modular. Add new Today experiences as typed dashboard cards and service-backed card generation rather than hardcoding more one-off sections into `app/(tabs)/index.tsx`.
+- Keep memory resurfacing logic inside `memoryService` and card composition inside `src/features/dashboard/` rather than reintroducing direct data shaping in routes.
+- Keep the dedicated `write` route focused on composition. Resist pulling the full editor and photo browser back into Today unless the overall IA changes intentionally.
+- Keep guided-memory question state in the dedicated Write flow. Do not spread multi-step guided writing across Today, Moments, or Settings.
+- Treat the current redesign as the visual baseline for future milestone work. Extend the calmer Today, stronger Moments ownership, and single writing path instead of reintroducing duplicate actions or crowded home-screen sections.
 - Never expose secrets in UI, logs, screenshots, sample env files, or docs.
 - Treat every `EXPO_PUBLIC_*` value as public once bundled into the app.
 - Do not put Synology or NAS credentials in the mobile app.
@@ -118,11 +138,8 @@ Photo API:
 
 ## Known future directions
 
-- Tailscale-based remote access to the Photo API
 - Cross-platform readiness and iPhone validation
 - Guided AI memory questions
-- On This Day resurfacing
-- Device photo provider
 - Export formats
 - Beta install/testing on real phones
 

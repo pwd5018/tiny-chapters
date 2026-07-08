@@ -17,14 +17,17 @@ import { runStartupDiagnosticsIfDeveloperMode } from "@/services/diagnostics/dia
 import { attemptNasRelinkForAllMemories } from "@/services/photo/photoRelinkService";
 import { getActivePhotoSourceMode } from "@/services/photo/photoService";
 import { theme } from "@/theme/theme";
+import { WriteDraftProvider } from "@/features/write/writeDraftContext";
 
 export default function RootLayout() {
   return (
     <AuthProvider>
       <PhotoAttachmentProvider>
-        <MemoryProvider>
-          <RootNavigator />
-        </MemoryProvider>
+        <WriteDraftProvider>
+          <MemoryProvider>
+            <RootNavigator />
+          </MemoryProvider>
+        </WriteDraftProvider>
       </PhotoAttachmentProvider>
     </AuthProvider>
   );

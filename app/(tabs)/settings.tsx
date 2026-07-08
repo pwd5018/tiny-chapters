@@ -429,11 +429,16 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Tiny Chapters</Text>
-        <Text style={styles.subtitle}>
-          A quiet place for small family memories and daily moments.
-        </Text>
+      <View style={styles.heroCard}>
+        <View style={styles.heroOrbLarge} />
+        <View style={styles.heroOrbSmall} />
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>Settings</Text>
+          <Text style={styles.title}>Tune the quiet parts of Tiny Chapters.</Text>
+          <Text style={styles.subtitle}>
+            Notification habits, photo durability, diagnostics, and account details all live here.
+          </Text>
+        </View>
       </View>
 
       <View style={styles.card}>
@@ -776,10 +781,47 @@ const styles = StyleSheet.create({
   content: {
     padding: theme.spacing.lg,
     gap: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl * 2,
+  },
+  heroCard: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    overflow: "hidden",
+    padding: theme.spacing.lg,
+    position: "relative",
+  },
+  heroOrbLarge: {
+    backgroundColor: "#E6D7C4",
+    borderRadius: 999,
+    height: 172,
+    opacity: 0.38,
+    position: "absolute",
+    right: -42,
+    top: -26,
+    width: 172,
+  },
+  heroOrbSmall: {
+    backgroundColor: "#DDBEA5",
+    borderRadius: 999,
+    height: 88,
+    opacity: 0.28,
+    position: "absolute",
+    right: 24,
+    top: 122,
+    width: 88,
   },
   header: {
     gap: theme.spacing.sm,
     marginTop: theme.spacing.sm,
+  },
+  eyebrow: {
+    color: theme.colors.accent,
+    fontSize: theme.typography.caption,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
   title: {
     color: theme.colors.textPrimary,
@@ -790,13 +832,22 @@ const styles = StyleSheet.create({
   subtitle: {
     color: theme.colors.textSecondary,
     fontSize: theme.typography.body,
+    lineHeight: 24,
   },
   card: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
+    backgroundColor: "#FFF8F1",
+    borderColor: "#E9D7C5",
     borderRadius: theme.radii.lg,
     borderWidth: 1,
     overflow: "hidden",
+    shadowColor: "#7C5C4D",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 1,
   },
   row: {
     borderBottomColor: theme.colors.border,
@@ -818,8 +869,8 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     alignItems: "center",
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.accent,
+    backgroundColor: "#FFF4E8",
+    borderColor: "#E6D2BC",
     borderRadius: theme.radii.pill,
     borderWidth: 1,
     justifyContent: "center",
@@ -834,7 +885,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     alignItems: "center",
-    backgroundColor: theme.colors.accent,
+    backgroundColor: "#A65940",
     borderRadius: theme.radii.pill,
     justifyContent: "center",
     minHeight: 48,
@@ -848,7 +899,7 @@ const styles = StyleSheet.create({
   },
   signOutButton: {
     alignItems: "center",
-    backgroundColor: theme.colors.accent,
+    backgroundColor: "#A65940",
     borderRadius: theme.radii.pill,
     paddingVertical: theme.spacing.md,
   },
@@ -863,8 +914,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   durabilityCard: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
+    backgroundColor: "#FFF8F1",
+    borderColor: "#E9D7C5",
     borderRadius: theme.radii.lg,
     borderWidth: 1,
     gap: theme.spacing.sm,
@@ -894,8 +945,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   reminderCard: {
-    backgroundColor: theme.colors.surface,
-    borderColor: theme.colors.border,
+    backgroundColor: "#FFF8F1",
+    borderColor: "#E9D7C5",
     borderRadius: theme.radii.lg,
     borderWidth: 1,
     gap: theme.spacing.md,
@@ -941,7 +992,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   chip: {
-    backgroundColor: theme.colors.input,
+    backgroundColor: "#FFFCF8",
     borderColor: theme.colors.border,
     borderRadius: theme.radii.pill,
     borderWidth: 1,
@@ -950,7 +1001,7 @@ const styles = StyleSheet.create({
   },
   dayChip: {
     alignItems: "center",
-    backgroundColor: theme.colors.input,
+    backgroundColor: "#FFFCF8",
     borderColor: theme.colors.border,
     borderRadius: theme.radii.pill,
     borderWidth: 1,
@@ -971,7 +1022,7 @@ const styles = StyleSheet.create({
     color: theme.colors.buttonText,
   },
   summaryCard: {
-    backgroundColor: theme.colors.input,
+    backgroundColor: "#FFFCF8",
     borderColor: theme.colors.border,
     borderRadius: theme.radii.md,
     borderWidth: 1,

@@ -197,6 +197,10 @@ export default function DiagnosticsScreen() {
           <KeyValue label="Runtime environment" value={snapshot?.app.runtimeEnvironment ?? "Unknown"} />
           <KeyValue label="Photo source mode" value={snapshot?.app.photoSourceMode ?? "Unknown"} />
           <KeyValue label="NAS Photo API" value={snapshot?.app.nasPhotoApiBaseUrl ?? "Not configured"} />
+          <KeyValue
+            label="Photo API network path"
+            value={snapshot?.app.nasPhotoApiNetworkTarget ?? "Not configured"}
+          />
           <KeyValue label="Supabase URL" value={snapshot?.app.supabaseUrl ?? "Not configured"} />
           <KeyValue label="Platform" value={snapshot?.app.platform ?? "Unknown"} />
           <KeyValue label="Expo ownership" value={snapshot?.app.expoOwnership ?? "Unknown"} />
@@ -373,11 +377,24 @@ export default function DiagnosticsScreen() {
           <KeyValue label="Media permission" value={iosReadinessDiagnostics?.mediaLibraryPermissionStatus ?? "Unknown"} />
           <KeyValue label="Photo source mode" value={iosReadinessDiagnostics?.photoSourceMode ?? "Unknown"} />
           <KeyValue label="Photo API URL" value={iosReadinessDiagnostics?.photoApiUrl ?? "Not configured"} />
+          <KeyValue
+            label="Photo API network path"
+            value={iosReadinessDiagnostics?.photoApiNetworkTarget ?? "Not configured"}
+          />
+          {iosReadinessDiagnostics?.remoteAccessGuidance ? (
+            <Text style={styles.detailText}>{iosReadinessDiagnostics.remoteAccessGuidance}</Text>
+          ) : null}
           {iosReadinessDiagnostics?.localUriRiskNote ? (
             <Text style={styles.detailText}>{iosReadinessDiagnostics.localUriRiskNote}</Text>
           ) : null}
           {iosReadinessDiagnostics?.localhostWarning ? (
             <Text style={styles.warningText}>{iosReadinessDiagnostics.localhostWarning}</Text>
+          ) : null}
+          {iosReadinessDiagnostics?.lanWarning ? (
+            <Text style={styles.warningText}>{iosReadinessDiagnostics.lanWarning}</Text>
+          ) : null}
+          {iosReadinessDiagnostics?.customUrlWarning ? (
+            <Text style={styles.warningText}>{iosReadinessDiagnostics.customUrlWarning}</Text>
           ) : null}
           {iosReadinessDiagnostics?.insecureHttpWarning ? (
             <Text style={styles.warningText}>{iosReadinessDiagnostics.insecureHttpWarning}</Text>

@@ -5,6 +5,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import {
   getAppEnvironmentLabel,
   getAppRuntimeLabel,
+  getNasPhotoApiNetworkTargetLabel,
   nasPhotoApiBaseUrl,
   supabaseUrl,
 } from "@/config/appConfig";
@@ -44,6 +45,7 @@ export function DeveloperEnvironmentBanner() {
       </Text>
       <Text style={styles.detail}>Photo source: {getActivePhotoSourceMode()}</Text>
       <Text style={styles.detail}>Photo API: {nasPhotoApiBaseUrl || "Not configured"}</Text>
+      <Text style={styles.detail}>Photo API path: {getNasPhotoApiNetworkTargetLabel()}</Text>
       <Text style={styles.detail}>Supabase: {supabaseUrl || "Not configured"}</Text>
     </View>
   );

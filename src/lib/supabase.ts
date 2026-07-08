@@ -4,6 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { supabaseAnonKey, supabaseUrl } from "@/config/appConfig";
+import type { MemoryGuidanceContext } from "@/types/memory";
 
 const secureStoreAdapter = {
   getItem: (key: string) => SecureStore.getItemAsync(key),
@@ -20,6 +21,7 @@ export type SupabaseMemoryRow = {
   prompt: string;
   text: string;
   tags: string[];
+  guided_context: MemoryGuidanceContext | null;
   created_at: string;
   updated_at: string;
 };

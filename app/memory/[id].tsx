@@ -18,6 +18,8 @@ import { useMemoryService } from "@/services/memoryService";
 import {
   getAttachedPhotoDisplayName,
   getAttachedPhotoPreviewUri,
+  getAttachedPhotoSourceLabel,
+  getAttachedPhotoStatusNote,
   getAttachedPhotoSyncStatusLabel,
 } from "@/services/photo/photoDurability";
 import { usePhotoAttachments } from "@/services/photo/photoAttachmentContext";
@@ -120,10 +122,11 @@ function AttachmentCard({
         <Text style={styles.attachmentName} numberOfLines={1}>
           {getAttachedPhotoDisplayName(attachment)}
         </Text>
-        <Text style={styles.attachmentMeta}>Source: {attachment.source.toUpperCase()}</Text>
+        <Text style={styles.attachmentMeta}>Source: {getAttachedPhotoSourceLabel(attachment)}</Text>
         <Text style={styles.attachmentMeta}>
           {getAttachedPhotoSyncStatusLabel(attachment.syncStatus)}
         </Text>
+        <Text style={styles.attachmentNote}>{getAttachedPhotoStatusNote(attachment)}</Text>
         <Text style={styles.attachmentPath} numberOfLines={2}>
           {attachment.path}
         </Text>
@@ -275,6 +278,7 @@ export default function MemoryDetailScreen() {
         prompt: trimmedPrompt,
         text: trimmedText,
         tags: parseTagsInput(tagsInput),
+        guidedContext: memory.guidedContext ?? null,
       });
       await updateMemoryPhotoRefs(memory.id, selectedAttachments);
       const reloadedMemory = await getMemoryById(memory.id);
@@ -744,6 +748,11 @@ const styles = StyleSheet.create({
   attachmentPath: {
     color: theme.colors.textMuted,
     fontSize: 11,
+  },
+  attachmentNote: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
   },
   inlineRemoveButton: {
     paddingHorizontal: theme.spacing.sm,

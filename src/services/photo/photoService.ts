@@ -5,12 +5,15 @@ import {
   photoSourceMode,
   type PhotoSourceMode,
 } from "@/config/photoSourceConfig";
+import { devicePhotoProvider } from "@/services/photo/devicePhotoProvider";
 import { mockPhotoProvider } from "@/services/photo/mockPhotoProvider";
 import {
   createNasPhotoProvider,
   testNasPhotoConnection,
 } from "@/services/photo/nasPhotoProvider";
 import type {
+  PhotoBrowseSource,
+  PhotoProviderCapabilities,
   PhotoMatchCandidate,
   PhotoPagingParams,
   PhotoSearchParams,
@@ -19,11 +22,14 @@ import type {
 const nasPhotoProvider = createNasPhotoProvider(nasPhotoApiBaseUrl, nasPhotoApiKey);
 
 function getActiveProvider() {
-  if (photoSourceMode === "nas" && isNasPhotoApiConfigured()) {
-    return nasPhotoProvider;
+  switch (getActivePhotoSourceMode()) {
+    case "nas":
+      return nasPhotoProvider;
+    case "device":
+      return devicePhotoProvider;
+    default:
+      return mockPhotoProvider;
   }
-
-  return mockPhotoProvider;
 }
 
 export async function getPhotosByDate(date: string) {
@@ -35,11 +41,28 @@ export async function getPhotoById(photoId: string) {
 }
 
 export function getActivePhotoSourceMode(): PhotoSourceMode {
+  if (photoSourceMode === "device") {
+    return "device";
+  }
+
   if (photoSourceMode === "nas" && isNasPhotoApiConfigured()) {
     return "nas";
   }
 
   return "mock";
+}
+
+export function getPhotoSourceCapabilities(
+  source: PhotoBrowseSource = getActivePhotoSourceMode()
+): PhotoProviderCapabilities {
+  switch (source) {
+    case "nas":
+      return nasPhotoProvider.getCapabilities();
+    case "device":
+      return devicePhotoProvider.getCapabilities();
+    default:
+      return mockPhotoProvider.getCapabilities();
+  }
 }
 
 export function getNasPhotoApiBaseUrl() {
@@ -51,22 +74,42 @@ export function getNasPhotoApiKeyConfigured() {
 }
 
 export function isNasPhotoMatchingAvailable() {
-  return photoSourceMode === "nas" && isNasPhotoApiConfigured();
+  return isNasPhotoApiConfigured();
 }
 
 export async function testPhotoConnection(date: string) {
-  if (getActivePhotoSourceMode() === "mock") {
-    return {
-      ok: true,
-      message: "Mock provider is active and responding.",
-    };
+  switch (getActivePhotoSourceMode()) {
+    case "mock":
+      return {
+        ok: true,
+        message: "Mock provider is active and responding.",
+      };
+    case "device":
+      return {
+        ok: true,
+        message:
+          "Device photo-source groundwork is active. Shared library browsing will land in the next slice.",
+      };
+    default:
+      return testNasPhotoConnection(nasPhotoApiBaseUrl, nasPhotoApiKey, date);
   }
-
-  return testNasPhotoConnection(nasPhotoApiBaseUrl, nasPhotoApiKey, date);
 }
 
 export async function loadPhotosForDate(date: string) {
   const mode = getActivePhotoSourceMode();
+  const capabilities = getPhotoSourceCapabilities(mode);
+
+  if (!capabilities.supportsDateLookup) {
+    return {
+      photos: [],
+      mode,
+      message:
+        mode === "device"
+          ? "Device-library browsing is reserved for the shared picker work in the next slice."
+          : "This photo source does not support date browsing yet.",
+      ok: true,
+    };
+  }
 
   if (mode === "mock") {
     const photos = await getPhotosByDate(date);
@@ -119,7 +162,7 @@ export async function searchPhotos(params: PhotoSearchParams) {
 
 export function getPhotoImageSource(uri: string) {
   if (
-    photoSourceMode === "nas" &&
+    isNasPhotoApiConfigured() &&
     nasPhotoApiKey &&
     nasPhotoApiBaseUrl &&
     uri.startsWith(nasPhotoApiBaseUrl)

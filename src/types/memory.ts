@@ -6,6 +6,31 @@ export type AttachedPhotoSyncStatus =
   | "missing"
   | "preserved_copy";
 
+export type GuidedMemoryFollowUpStatus = "pending" | "answered" | "skipped";
+
+export type GuidedMemoryFollowUp = {
+  id: string;
+  question: string;
+  answer: string;
+  order: number;
+  status: GuidedMemoryFollowUpStatus;
+};
+
+export type GuidedMemoryDraft = {
+  baseQuestion: string;
+  originalAnswer: string;
+  followUps: GuidedMemoryFollowUp[];
+  composedText: string;
+  polishedSuggestion: string | null;
+};
+
+export type MemoryGuidanceContext = {
+  baseQuestion: string;
+  originalAnswer: string;
+  followUps: GuidedMemoryFollowUp[];
+  polishedSuggestion: string | null;
+};
+
 export type AttachedPhotoRef = {
   photoId: string;
   source: AttachedPhotoSource;
@@ -27,6 +52,7 @@ export type Memory = {
   prompt: string;
   text: string;
   tags: string[];
+  guidedContext: MemoryGuidanceContext | null;
   attachedPhotos: AttachedPhotoRef[];
   createdAt: string;
   updatedAt: string;
@@ -37,5 +63,6 @@ export type CreateMemoryInput = {
   prompt: string;
   text: string;
   tags: string[];
+  guidedContext?: MemoryGuidanceContext | null;
   attachedPhotos: AttachedPhotoRef[];
 };
