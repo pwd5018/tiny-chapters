@@ -9,12 +9,14 @@ import { devicePhotoProvider } from "@/services/photo/devicePhotoProvider";
 import { mockPhotoProvider } from "@/services/photo/mockPhotoProvider";
 import {
   createNasPhotoProvider,
+  inspectNasPhotoMatchCandidate,
   testNasPhotoConnection,
 } from "@/services/photo/nasPhotoProvider";
 import type {
   PhotoBrowseSource,
   PhotoProviderCapabilities,
   PhotoMatchCandidate,
+  PhotoMatchDiagnosticResult,
   PhotoPagingParams,
   PhotoSearchParams,
 } from "@/types/photo";
@@ -146,6 +148,19 @@ export async function matchPhotoCandidate(candidate: PhotoMatchCandidate) {
   }
 
   return nasPhotoProvider.matchPhotoCandidate(candidate);
+}
+
+export async function inspectPhotoMatchCandidate(
+  candidate: PhotoMatchCandidate
+): Promise<PhotoMatchDiagnosticResult> {
+  if (!isNasPhotoMatchingAvailable()) {
+    return {
+      status: "unavailable",
+      message: "NAS photo matching is not configured right now.",
+    };
+  }
+
+  return inspectNasPhotoMatchCandidate(nasPhotoApiBaseUrl, nasPhotoApiKey, candidate);
 }
 
 export async function getFolders(path?: string) {

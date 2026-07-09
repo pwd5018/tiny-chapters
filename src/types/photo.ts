@@ -32,6 +32,19 @@ export type PhotoMatchCandidate = {
   toleranceMinutes?: number;
 };
 
+export type PhotoMatchDiagnosticCandidate = {
+  confidence: number;
+  photo: PhotoAsset;
+};
+
+export type PhotoMatchDiagnosticResult = {
+  status: "matched" | "no_match" | "ambiguous" | "unauthorized" | "unavailable" | "error";
+  message: string;
+  confidence?: number;
+  matchedPhoto?: PhotoAsset | null;
+  candidates?: PhotoMatchDiagnosticCandidate[];
+};
+
 export type PhotoSearchResult = {
   date: string;
   photos: PhotoAsset[];

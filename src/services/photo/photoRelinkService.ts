@@ -1,8 +1,13 @@
 import { getSupabaseClient, type SupabaseMemoryPhotoRefRow } from "@/lib/supabase";
 import { getCurrentUser } from "@/services/auth/authService";
 import { normalizeAttachedPhotoSyncStatus } from "@/services/photo/photoDurability";
-import { isNasPhotoMatchingAvailable, matchPhotoCandidate } from "@/services/photo/photoService";
+import {
+  inspectPhotoMatchCandidate,
+  isNasPhotoMatchingAvailable,
+  matchPhotoCandidate,
+} from "@/services/photo/photoService";
 import type { AttachedPhotoRef } from "@/types/memory";
+import type { PhotoMatchCandidate, PhotoMatchDiagnosticResult } from "@/types/photo";
 
 type PendingRefRow = SupabaseMemoryPhotoRefRow & {
   memory_id: string;
@@ -23,6 +28,13 @@ export type PhotoDurabilitySummary = {
   pendingNasMatches: number;
   linkedNasPhotos: number;
   missingPhotos: number;
+};
+
+export type PendingNasMatchDiagnostic = {
+  memoryId: string;
+  ref: AttachedPhotoRef;
+  candidate: PhotoMatchCandidate;
+  matchResult: PhotoMatchDiagnosticResult;
 };
 
 function mapPhotoRefRow(row: SupabaseMemoryPhotoRefRow): AttachedPhotoRef {
@@ -64,6 +76,16 @@ function areRefsEqual(left: AttachedPhotoRef, right: AttachedPhotoRef) {
 
 function isPendingNasMatchRef(ref: AttachedPhotoRef) {
   return ref.source === "local" && ref.syncStatus === "pending_nas_match";
+}
+
+function buildMatchCandidate(ref: AttachedPhotoRef): PhotoMatchCandidate {
+  return {
+    filename: ref.filename,
+    takenAt: ref.takenAt,
+    fileSize: ref.fileSize,
+    width: ref.width,
+    height: ref.height,
+  };
 }
 
 async function getUserIdOrThrow() {
@@ -184,13 +206,7 @@ export async function attemptNasRelinkForRef(ref: AttachedPhotoRef): Promise<Att
   }
 
   try {
-    const matchedPhoto = await matchPhotoCandidate({
-      filename: ref.filename,
-      takenAt: ref.takenAt,
-      fileSize: ref.fileSize,
-      width: ref.width,
-      height: ref.height,
-    });
+    const matchedPhoto = await matchPhotoCandidate(buildMatchCandidate(ref));
 
     if (!matchedPhoto) {
       return ref;
@@ -316,4 +332,29 @@ export async function attemptNasRelinkForAllMemories(): Promise<NasRelinkSummary
 
 export async function retryPendingNasMatches() {
   return attemptNasRelinkForAllMemories();
+}
+
+export async function inspectPendingNasMatchRefs(
+  options?: { limit?: number }
+): Promise<PendingNasMatchDiagnostic[]> {
+  const rows = await fetchPhotoRefRows();
+  const limit = Math.max(1, options?.limit ?? 5);
+  const pendingRows = rows
+    .filter((row) => isPendingNasMatchRef(mapPhotoRefRow(row)))
+    .slice(0, limit);
+
+  return Promise.all(
+    pendingRows.map(async (row) => {
+      const ref = mapPhotoRefRow(row);
+      const candidate = buildMatchCandidate(ref);
+      const matchResult = await inspectPhotoMatchCandidate(candidate);
+
+      return {
+        memoryId: row.memory_id,
+        ref,
+        candidate,
+        matchResult,
+      };
+    })
+  );
 }

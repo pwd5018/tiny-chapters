@@ -16,6 +16,7 @@ import {
   getDiagnosticsSnapshot,
   getIosReadinessDiagnostics,
   getNotificationDiagnostics,
+  getPendingNasMatchDiagnostics,
   getPhotoDurabilityCounts,
   getRecentDiagnosticsEvents,
   isDeveloperModeEnabled,
@@ -30,6 +31,7 @@ import {
   type NasHealthResult,
   type NasStatusResult,
   type NotificationDiagnostics,
+  type PendingNasMatchDiagnosticsResult,
   type SupabaseDiagnosticsResult,
 } from "@/services/diagnostics/diagnosticsService";
 import type { NasRelinkSummary, PhotoDurabilitySummary } from "@/services/photo/photoRelinkService";
@@ -50,6 +52,18 @@ function formatNextReminder(value: number | null) {
   }
 
   return new Date(value).toLocaleString();
+}
+
+function formatCandidateValue(value: string | number | undefined) {
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+
+  return "Unavailable";
 }
 
 function DiagnosticsSection({
@@ -91,6 +105,8 @@ export default function DiagnosticsScreen() {
   const [nasStatusResult, setNasStatusResult] = useState<NasStatusResult | null>(null);
   const [durabilitySummary, setDurabilitySummary] = useState<PhotoDurabilitySummary | null>(null);
   const [relinkSummary, setRelinkSummary] = useState<NasRelinkSummary | null>(null);
+  const [pendingMatchDiagnostics, setPendingMatchDiagnostics] =
+    useState<PendingNasMatchDiagnosticsResult | null>(null);
   const [notificationDiagnostics, setNotificationDiagnostics] = useState<NotificationDiagnostics | null>(null);
   const [iosReadinessDiagnostics, setIosReadinessDiagnostics] = useState<IosReadinessDiagnostics | null>(null);
   const [events, setEvents] = useState<DiagnosticsEvent[]>([]);
@@ -99,6 +115,7 @@ export default function DiagnosticsScreen() {
   const [isTestingNasHealth, setIsTestingNasHealth] = useState(false);
   const [isTestingNasStatus, setIsTestingNasStatus] = useState(false);
   const [isRetryingRelink, setIsRetryingRelink] = useState(false);
+  const [isInspectingPendingMatches, setIsInspectingPendingMatches] = useState(false);
   const [isTestingNotification, setIsTestingNotification] = useState(false);
   const [isClearingEvents, setIsClearingEvents] = useState(false);
 
@@ -333,6 +350,98 @@ export default function DiagnosticsScreen() {
               <KeyValue label="Matched" value={String(relinkSummary.matched)} />
               <KeyValue label="Still pending" value={String(relinkSummary.stillPending)} />
               <KeyValue label="Errors" value={String(relinkSummary.errors)} />
+            </View>
+          ) : null}
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => {
+              void (async () => {
+                setIsInspectingPendingMatches(true);
+                try {
+                  setPendingMatchDiagnostics(await getPendingNasMatchDiagnostics());
+                } finally {
+                  setIsInspectingPendingMatches(false);
+                  await refreshEvents();
+                }
+              })();
+            }}
+          >
+            {isInspectingPendingMatches ? (
+              <ActivityIndicator color={theme.colors.accent} />
+            ) : (
+              <Text style={styles.secondaryButtonText}>Inspect Pending Matches</Text>
+            )}
+          </Pressable>
+          {pendingMatchDiagnostics ? (
+            <View style={styles.group}>
+              <Text style={styles.detailText}>
+                Inspected {pendingMatchDiagnostics.inspected} pending photo reference
+                {pendingMatchDiagnostics.inspected === 1 ? "" : "s"}.
+              </Text>
+              {pendingMatchDiagnostics.items.length ? (
+                pendingMatchDiagnostics.items.map((item, index) => (
+                  <View key={`${item.memoryId}-${item.ref.photoId}-${index}`} style={styles.logCard}>
+                    <Text style={styles.logTitle}>
+                      {item.ref.filename?.trim() || item.ref.photoId}
+                    </Text>
+                    <Text style={styles.logMeta}>
+                      Memory {item.memoryId.slice(0, 8)} | {item.matchResult.status.toUpperCase()}
+                    </Text>
+                    <Text style={styles.logDetail}>{item.matchResult.message}</Text>
+                    <KeyValue
+                      label="Taken at"
+                      value={formatCandidateValue(item.candidate.takenAt)}
+                    />
+                    <KeyValue
+                      label="File size"
+                      value={formatCandidateValue(item.candidate.fileSize)}
+                    />
+                    <KeyValue
+                      label="Dimensions"
+                      value={`${formatCandidateValue(item.candidate.width)} x ${formatCandidateValue(item.candidate.height)}`}
+                    />
+                    <KeyValue label="Stored path" value={item.ref.path} />
+                    {item.matchResult.matchedPhoto ? (
+                      <View style={styles.group}>
+                        <KeyValue
+                          label="Matched filename"
+                          value={item.matchResult.matchedPhoto.filename}
+                        />
+                        <KeyValue
+                          label="Matched path"
+                          value={item.matchResult.matchedPhoto.path}
+                        />
+                        <KeyValue
+                          label="Confidence"
+                          value={formatCandidateValue(item.matchResult.confidence)}
+                        />
+                      </View>
+                    ) : null}
+                    {item.matchResult.candidates?.length ? (
+                      <View style={styles.group}>
+                        {item.matchResult.candidates.map((candidate, candidateIndex) => (
+                          <View
+                            key={`${candidate.photo.id}-${candidateIndex}`}
+                            style={styles.candidateCard}
+                          >
+                            <Text style={styles.logTitle}>
+                              Candidate {candidateIndex + 1}: {candidate.photo.filename}
+                            </Text>
+                            <Text style={styles.logMeta}>
+                              Confidence {candidate.confidence}
+                            </Text>
+                            <Text style={styles.logDetail}>{candidate.photo.path}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.detailText}>
+                  No pending photo references were available to inspect.
+                </Text>
+              )}
             </View>
           ) : null}
         </DiagnosticsSection>
@@ -588,6 +697,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 2,
     padding: theme.spacing.md,
+  },
+  candidateCard: {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    gap: 2,
+    padding: theme.spacing.sm,
   },
   logTitle: {
     color: theme.colors.textPrimary,

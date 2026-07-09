@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
@@ -14,6 +15,20 @@ import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 
 import { TimePickerField } from "@/components/TimePickerField";
+import { DatePickerField } from "@/components/DatePickerField";
+import { useMemoryService } from "@/services/memoryService";
+import { buildMemoryArchiveExport } from "@/services/export/exportService";
+import {
+  chooseAndroidExportDirectory,
+  createExportFilename,
+  getExportDirectoryState,
+  openExportFile,
+  saveExportTextFile,
+} from "@/services/export/exportFileService";
+import {
+  formatMemoryArchiveAsJson,
+  formatMemoryArchiveAsMarkdown,
+} from "@/services/export/exportFormatters";
 import {
   getReminderDescription,
   getReminderSettings,
@@ -42,6 +57,7 @@ import {
 } from "@/services/photo/photoService";
 import { useAuth } from "@/services/auth/AuthProvider";
 import { theme } from "@/theme/theme";
+import type { MemoryExportFilters, MemoryExportSummary } from "@/types/export";
 import type {
   ReminderCadence,
   ReminderPermissionStatus,
@@ -97,8 +113,10 @@ function formatNextReminder(timestamp: number | null) {
 }
 
 export default function SettingsScreen() {
+  const todayDateKey = new Date().toISOString().slice(0, 10);
   const router = useRouter();
   const { isConfigured, session, signOut, user } = useAuth();
+  const { getMemories } = useMemoryService();
   const [connectionMessage, setConnectionMessage] = useState("");
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [durabilitySummary, setDurabilitySummary] = useState<{
@@ -117,6 +135,39 @@ export default function SettingsScreen() {
   const [isSavingReminderSettings, setIsSavingReminderSettings] = useState(false);
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const [allMemories, setAllMemories] = useState<Awaited<ReturnType<typeof getMemories>>>([]);
+  const [isLoadingExportPreview, setIsLoadingExportPreview] = useState(true);
+  const [exportFilters, setExportFilters] = useState<{
+    useFromDate: boolean;
+    fromDate: string;
+    useToDate: boolean;
+    toDate: string;
+    tagsInput: string;
+  }>({
+    useFromDate: false,
+    fromDate: todayDateKey,
+    useToDate: false,
+    toDate: todayDateKey,
+    tagsInput: "",
+  });
+  const [exportPreviewSummary, setExportPreviewSummary] = useState<MemoryExportSummary | null>(null);
+  const [exportPreviewCount, setExportPreviewCount] = useState(0);
+  const [exportFiltersError, setExportFiltersError] = useState("");
+  const [isExportingFormat, setIsExportingFormat] = useState<"json" | "markdown" | null>(null);
+  const [exportDirectoryState, setExportDirectoryState] = useState<{
+    directoryUri: string | null;
+    directoryLabel: string;
+    storageMode: "android-user-folder" | "app-documents";
+  } | null>(null);
+  const [isChoosingExportDirectory, setIsChoosingExportDirectory] = useState(false);
+  const [lastSavedExport, setLastSavedExport] = useState<{
+    uri: string;
+    filename: string;
+    directoryLabel: string;
+    storageMode: "android-user-folder" | "app-documents";
+  } | null>(null);
+  const [isOpeningLastExport, setIsOpeningLastExport] = useState(false);
   const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
   const [developerTapCount, setDeveloperTapCount] = useState(0);
   const notificationsSupported = isReminderNotificationsSupported();
@@ -178,15 +229,65 @@ export default function SettingsScreen() {
     }
   }, []);
 
+  const loadExportPreview = useCallback(async () => {
+    setIsLoadingExportPreview(true);
+
+    try {
+      const [memories, nextDirectoryState] = await Promise.all([
+        getMemories(),
+        getExportDirectoryState(),
+      ]);
+      setAllMemories(memories);
+      setExportDirectoryState(nextDirectoryState);
+    } catch (error) {
+      setExportMessage(
+        error instanceof Error ? error.message : "Tiny Chapters could not load memories for export."
+      );
+      setAllMemories([]);
+    } finally {
+      setIsLoadingExportPreview(false);
+    }
+  }, [getMemories]);
+
   useFocusEffect(
     useCallback(() => {
       void Promise.all([
         loadDurabilitySummary(),
         loadReminderState(),
+        loadExportPreview(),
         isDeveloperModeEnabled().then(setDeveloperModeEnabled),
       ]);
-    }, [loadDurabilitySummary, loadReminderState])
+    }, [loadDurabilitySummary, loadExportPreview, loadReminderState])
   );
+
+  useEffect(() => {
+    const nextFilters: MemoryExportFilters = {
+      from: exportFilters.useFromDate ? exportFilters.fromDate : null,
+      to: exportFilters.useToDate ? exportFilters.toDate : null,
+      tags: exportFilters.tagsInput
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    };
+
+    if (
+      exportFilters.useFromDate &&
+      exportFilters.useToDate &&
+      exportFilters.fromDate > exportFilters.toDate
+    ) {
+      setExportFiltersError("Start date needs to be on or before the end date.");
+      setExportPreviewSummary(null);
+      setExportPreviewCount(0);
+      return;
+    }
+
+    setExportFiltersError("");
+    const previewArchive = buildMemoryArchiveExport(allMemories, {
+      filters: nextFilters,
+    });
+    setExportPreviewSummary(previewArchive.summary);
+    setExportPreviewCount(previewArchive.memories.length);
+  }, [allMemories, exportFilters]);
 
   const handleRetryNasPhotoMatching = async () => {
     setIsRetryingRelink(true);
@@ -401,6 +502,107 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleExportArchive = async (format: "json" | "markdown") => {
+    setIsExportingFormat(format);
+    setExportMessage("");
+
+    try {
+      if (exportFiltersError) {
+        throw new Error(exportFiltersError);
+      }
+
+      const archive = buildMemoryArchiveExport(allMemories, {
+        filters: {
+          from: exportFilters.useFromDate ? exportFilters.fromDate : null,
+          to: exportFilters.useToDate ? exportFilters.toDate : null,
+          tags: exportFilters.tagsInput
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+        },
+      });
+      const content =
+        format === "json"
+          ? formatMemoryArchiveAsJson(archive)
+          : formatMemoryArchiveAsMarkdown(archive);
+      const extension = format === "json" ? "json" : "md";
+      const filename = createExportFilename(`tiny-chapters-${format}-archive`, extension);
+      const savedExport = await saveExportTextFile({
+        filename,
+        extension,
+        content,
+      });
+      setLastSavedExport({
+        uri: savedExport.uri,
+        filename: savedExport.filename,
+        directoryLabel: savedExport.directoryLabel,
+        storageMode: savedExport.storageMode,
+      });
+      setExportDirectoryState({
+        directoryUri: savedExport.directoryUri,
+        directoryLabel: savedExport.directoryLabel,
+        storageMode: savedExport.storageMode,
+      });
+
+      setExportMessage(
+        `Saved ${format.toUpperCase()} export with ${archive.summary.memoryCount} mem${archive.summary.memoryCount === 1 ? "ory" : "ories"} and ${archive.summary.totalPhotoReferences} photo reference${archive.summary.totalPhotoReferences === 1 ? "" : "s"} in ${savedExport.directoryLabel}.`
+      );
+    } catch (error) {
+      setExportMessage(
+        error instanceof Error ? error.message : "Tiny Chapters could not create that export."
+      );
+    } finally {
+      setIsExportingFormat(null);
+    }
+  };
+
+  const handleOpenLastExport = async () => {
+    if (!lastSavedExport) {
+      return;
+    }
+
+    setIsOpeningLastExport(true);
+
+    try {
+      await openExportFile(lastSavedExport.uri);
+    } catch (error) {
+      setExportMessage(
+        error instanceof Error
+          ? error.message
+          : "Tiny Chapters could not open that export file directly."
+      );
+    } finally {
+      setIsOpeningLastExport(false);
+    }
+  };
+
+  const handleChooseExportDirectory = async () => {
+    setIsChoosingExportDirectory(true);
+    setExportMessage("");
+
+    try {
+      const nextDirectory = await chooseAndroidExportDirectory();
+
+      if (!nextDirectory) {
+        setExportMessage("Tiny Chapters kept the current export location because no folder was chosen.");
+        return;
+      }
+
+      setExportDirectoryState(nextDirectory);
+      setExportMessage(
+        "Tiny Chapters will now save exports into your chosen Android folder."
+      );
+    } catch (error) {
+      setExportMessage(
+        error instanceof Error
+          ? error.message
+          : "Tiny Chapters could not set an Android export folder."
+      );
+    } finally {
+      setIsChoosingExportDirectory(false);
+    }
+  };
+
   const items = [
     {
       title: "Supabase Status",
@@ -422,7 +624,7 @@ export default function SettingsScreen() {
       title: "NAS API Key",
       value: getNasPhotoApiKeyConfigured() ? "Configured" : "Missing",
     },
-    { title: "Export Memories", value: "Coming soon" },
+    { title: "Archive Export", value: "JSON and Markdown ready" },
     { title: "Photo Awareness", value: "References only for now" },
     { title: "AI Cleanup", value: "Coming soon" },
   ];
@@ -461,6 +663,271 @@ export default function SettingsScreen() {
       </Pressable>
 
       {connectionMessage ? <Text style={styles.connectionMessage}>{connectionMessage}</Text> : null}
+
+      <View style={styles.exportCard}>
+        <Text style={styles.exportTitle}>Archive export</Text>
+        <Text style={styles.exportCopy}>
+          Save a readable backup of your memories as JSON or Markdown. This first pass exports
+          memory text plus photo-reference metadata, not the original image files themselves.
+        </Text>
+        <Text style={styles.exportMeta}>
+          Best for backup now, and for a later local book-builder workflow that can gather the real
+          photos separately.
+        </Text>
+        <Text style={styles.exportMeta}>
+          {Platform.OS === "android"
+            ? "Choose one Android folder once, then Tiny Chapters will keep saving exports there so they are easy to browse outside the app."
+            : "Exports save into a stable app-owned folder on this platform because the same Android-style shared folder access is not available here yet."}
+        </Text>
+        {Platform.OS === "android" ? (
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => void handleChooseExportDirectory()}
+            disabled={isChoosingExportDirectory}
+          >
+            {isChoosingExportDirectory ? (
+              <ActivityIndicator color={theme.colors.accent} />
+            ) : (
+              <Text style={styles.secondaryButtonText}>
+                {exportDirectoryState?.storageMode === "android-user-folder"
+                  ? "Change Export Folder"
+                  : "Choose Export Folder"}
+              </Text>
+            )}
+          </Pressable>
+        ) : null}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>Save location</Text>
+          <Text style={styles.summaryValue}>
+            {exportDirectoryState?.directoryLabel ??
+              (Platform.OS === "android" ? "No Android folder chosen yet" : "Tiny Chapters Exports")}
+          </Text>
+          <Text style={styles.summaryHint}>
+            {exportDirectoryState?.directoryUri ??
+              (Platform.OS === "android"
+                ? "Choose a folder so exports save somewhere you can browse."
+                : "App-owned export folder")}
+          </Text>
+        </View>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Date range</Text>
+          <View style={styles.chipRow}>
+            <Pressable
+              style={[styles.chip, !exportFilters.useFromDate && styles.chipActive]}
+              onPress={() =>
+                setExportFilters((current) => ({
+                  ...current,
+                  useFromDate: false,
+                }))
+              }
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  !exportFilters.useFromDate && styles.chipTextActive,
+                ]}
+              >
+                Any start
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.chip, exportFilters.useFromDate && styles.chipActive]}
+              onPress={() =>
+                setExportFilters((current) => ({
+                  ...current,
+                  useFromDate: true,
+                }))
+              }
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  exportFilters.useFromDate && styles.chipTextActive,
+                ]}
+              >
+                Use start date
+              </Text>
+            </Pressable>
+          </View>
+          {exportFilters.useFromDate ? (
+            <DatePickerField
+              value={exportFilters.fromDate}
+              onChange={(fromDate) =>
+                setExportFilters((current) => ({
+                  ...current,
+                  fromDate,
+                }))
+              }
+              label="Start date"
+              actionLabel="Set"
+              modalTitle="Choose a start date"
+              helperText="Only include memories on or after this day."
+            />
+          ) : null}
+          <View style={styles.chipRow}>
+            <Pressable
+              style={[styles.chip, !exportFilters.useToDate && styles.chipActive]}
+              onPress={() =>
+                setExportFilters((current) => ({
+                  ...current,
+                  useToDate: false,
+                }))
+              }
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  !exportFilters.useToDate && styles.chipTextActive,
+                ]}
+              >
+                Any end
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.chip, exportFilters.useToDate && styles.chipActive]}
+              onPress={() =>
+                setExportFilters((current) => ({
+                  ...current,
+                  useToDate: true,
+                }))
+              }
+            >
+              <Text
+                style={[
+                  styles.chipText,
+                  exportFilters.useToDate && styles.chipTextActive,
+                ]}
+              >
+                Use end date
+              </Text>
+            </Pressable>
+          </View>
+          {exportFilters.useToDate ? (
+            <DatePickerField
+              value={exportFilters.toDate}
+              onChange={(toDate) =>
+                setExportFilters((current) => ({
+                  ...current,
+                  toDate,
+                }))
+              }
+              label="End date"
+              actionLabel="Set"
+              modalTitle="Choose an end date"
+              helperText="Only include memories on or before this day."
+            />
+          ) : null}
+        </View>
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Tags</Text>
+          <TextInput
+            style={styles.textInput}
+            value={exportFilters.tagsInput}
+            onChangeText={(tagsInput) =>
+              setExportFilters((current) => ({
+                ...current,
+                tagsInput,
+              }))
+            }
+            placeholder="school, christmas, beach"
+            placeholderTextColor={theme.colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Text style={styles.exportMeta}>
+            Separate tags with commas. Tiny Chapters will only include memories that have all of
+            the tags you list here.
+          </Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryTitle}>Export preview</Text>
+          {isLoadingExportPreview ? (
+            <View style={styles.inlineLoadingRow}>
+              <ActivityIndicator color={theme.colors.accent} />
+              <Text style={styles.summaryHint}>Loading memories for export preview...</Text>
+            </View>
+          ) : exportFiltersError ? (
+            <Text style={styles.permissionWarning}>{exportFiltersError}</Text>
+          ) : exportPreviewSummary ? (
+            <>
+              <Text style={styles.summaryValue}>
+                {exportPreviewCount} mem{exportPreviewCount === 1 ? "ory" : "ories"} selected
+              </Text>
+              <Text style={styles.summaryHint}>
+                {exportPreviewSummary.totalPhotoReferences} photo reference
+                {exportPreviewSummary.totalPhotoReferences === 1 ? "" : "s"} across{" "}
+                {exportPreviewSummary.memoryWithPhotosCount} mem
+                {exportPreviewSummary.memoryWithPhotosCount === 1 ? "ory" : "ories"} with photos.
+              </Text>
+              <Text style={styles.summaryHint}>
+                Linked to NAS: {exportPreviewSummary.linkedNasPhotoCount}. Pending match:{" "}
+                {exportPreviewSummary.pendingNasMatchCount}. Missing:{" "}
+                {exportPreviewSummary.missingPhotoCount}.
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.summaryHint}>No export preview available yet.</Text>
+          )}
+        </View>
+        <View style={styles.buttonStack}>
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => void handleExportArchive("json")}
+            disabled={
+              isExportingFormat !== null ||
+              Boolean(exportFiltersError) ||
+              isLoadingExportPreview ||
+              (Platform.OS === "android" && exportDirectoryState?.storageMode !== "android-user-folder")
+            }
+          >
+            {isExportingFormat === "json" ? (
+              <ActivityIndicator color={theme.colors.accent} />
+            ) : (
+              <Text style={styles.secondaryButtonText}>Export JSON Archive</Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => void handleExportArchive("markdown")}
+            disabled={
+              isExportingFormat !== null ||
+              Boolean(exportFiltersError) ||
+              isLoadingExportPreview ||
+              (Platform.OS === "android" && exportDirectoryState?.storageMode !== "android-user-folder")
+            }
+          >
+            {isExportingFormat === "markdown" ? (
+              <ActivityIndicator color={theme.colors.accent} />
+            ) : (
+              <Text style={styles.secondaryButtonText}>Export Markdown Archive</Text>
+            )}
+          </Pressable>
+          {lastSavedExport ? (
+            <Pressable
+              style={styles.secondaryButton}
+              onPress={() => void handleOpenLastExport()}
+              disabled={isOpeningLastExport}
+            >
+              {isOpeningLastExport ? (
+                <ActivityIndicator color={theme.colors.accent} />
+              ) : (
+                <Text style={styles.secondaryButtonText}>Open Last Export</Text>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+
+        {exportMessage ? <Text style={styles.connectionMessage}>{exportMessage}</Text> : null}
+        {lastSavedExport ? (
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryTitle}>Last saved export</Text>
+            <Text style={styles.summaryValue}>{lastSavedExport.filename}</Text>
+            <Text style={styles.summaryHint}>Folder: {lastSavedExport.directoryLabel}</Text>
+            <Text style={styles.summaryHint}>{lastSavedExport.uri}</Text>
+          </View>
+        ) : null}
+      </View>
 
       <View style={styles.durabilityCard}>
         <Text style={styles.durabilityTitle}>Photo durability</Text>
@@ -920,6 +1387,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: theme.spacing.sm,
     padding: theme.spacing.lg,
+  },
+  exportCard: {
+    backgroundColor: "#FFF8F1",
+    borderColor: "#E9D7C5",
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    gap: theme.spacing.sm,
+    padding: theme.spacing.lg,
+  },
+  exportTitle: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.title,
+    fontWeight: "700",
+  },
+  exportCopy: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body,
+    lineHeight: 22,
+  },
+  exportMeta: {
+    color: theme.colors.textMuted,
+    fontSize: theme.typography.caption,
+    lineHeight: 18,
+  },
+  textInput: {
+    backgroundColor: "#FFFCF8",
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.body,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
   },
   durabilityTitle: {
     color: theme.colors.textPrimary,

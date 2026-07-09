@@ -17,6 +17,9 @@ Implemented in the repo now:
 - AI-capable write flow inside the dedicated Write route, using the local gateway in `photo-api/` when configured and falling back gracefully to deterministic local helpers when it is not
 - Optional cleanup seam inside the dedicated Write route that keeps a separate polished short-form suggestion instead of overwriting the rough draft by default
 - Saved memories can now persist guided context in Supabase through `memories.guided_context`, while still keeping the main saved memory in `memories.text`
+- Early Phase 13 export foundation with a canonical archive schema, photo-manifest mapping, export summary counts, and service-layer filtering helpers
+- First Settings-based archive export actions for JSON and Markdown, now oriented around a remembered Android export folder so files land somewhere the user can actually browse
+- First-pass targeted export controls in Settings, including date-range filters, comma-separated tag filters, and a preview summary before export
 - Supabase Auth plus Supabase-backed `memories` and `memory_photo_refs`
 - Service-layer boundaries for auth, memories, photos, reminders, diagnostics, and permissions
 - Mock, NAS, and device-aware photo source handling behind `photoService`
@@ -43,14 +46,21 @@ Not implemented yet:
 - Dashboard photo thumbnails inside On This Day cards
 - NAS or device-photo dashboard suggestions
 - Advanced stats expansions beyond the current totals, monthly count, and streak summary that live on the Moments tab
-- Export flows
+- A local companion workflow that resolves actual photo files for a printed book
 - Product-mode cloud photo preservation
 
 Current next-phase plan:
 
 - Phase 13 is Export.
-- The expected implementation should add a personal, readable export path first, likely starting with JSON and Markdown before later PDF/book-style output.
-- Keep the current storage model intact: export should reflect memories and reference metadata clearly without turning this phase into cloud photo storage or a broad sync rewrite.
+- Phase 13 should now be treated as the archive-export foundation for a later printed-book workflow, not just a one-off data dump.
+- The first implementation should add a personal, readable export path starting with structured JSON plus human-readable Markdown.
+- Export should preserve enough photo identity for a later local book-builder workflow to resolve the real originals from NAS or local storage.
+- Keep the current storage model intact: export should reflect memories and reference metadata clearly without turning this phase into cloud photo storage, broad sync, or in-app print publishing.
+- Recommended Phase 13 slices:
+  1. Slice 1: define the canonical export schema plus service-layer mapping/filtering helpers for memories and attached-photo manifests
+  2. Slice 2: generate JSON and Markdown outputs from that canonical export model
+  3. Slice 3: add Settings entrypoints and first-pass targeted export controls such as date range and lightweight tag filtering
+- Later printed-book work should likely live in a separate local companion workflow that reads the Tiny Chapters export, resolves actual photo files, and assembles print-ready output.
 
 ## Tech stack
 
@@ -140,7 +150,7 @@ Photo API:
 
 - Cross-platform readiness and iPhone validation
 - Guided AI memory questions
-- Export formats
+- Export formats and future book-builder workflow
 - Beta install/testing on real phones
 
 ## Current discrepancies to remember

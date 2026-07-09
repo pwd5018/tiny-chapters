@@ -26,9 +26,19 @@ type DatePickerFieldProps = {
   value: string;
   onChange: (nextDateKey: string) => void;
   helperText?: string;
+  label?: string;
+  actionLabel?: string;
+  modalTitle?: string;
 };
 
-export function DatePickerField({ value, onChange, helperText }: DatePickerFieldProps) {
+export function DatePickerField({
+  value,
+  onChange,
+  helperText,
+  label = "Photo day",
+  actionLabel = "Change",
+  modalTitle = "Choose a day",
+}: DatePickerFieldProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [draftDate, setDraftDate] = useState(() => parseDateKeyAsLocalDate(value));
   const selectedDate = useMemo(() => parseDateKeyAsLocalDate(value), [value]);
@@ -64,10 +74,10 @@ export function DatePickerField({ value, onChange, helperText }: DatePickerField
         onPress={openPicker}
       >
         <View style={styles.fieldCopy}>
-          <Text style={styles.fieldLabel}>Photo day</Text>
+          <Text style={styles.fieldLabel}>{label}</Text>
           <Text style={styles.fieldValue}>{formatDateLabel(value)}</Text>
         </View>
-        <Text style={styles.fieldAction}>Change</Text>
+        <Text style={styles.fieldAction}>{actionLabel}</Text>
       </Pressable>
       {helperText ? <Text style={styles.helperText}>{helperText}</Text> : null}
 
@@ -84,7 +94,7 @@ export function DatePickerField({ value, onChange, helperText }: DatePickerField
         <Modal visible={isOpen} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Choose a day</Text>
+              <Text style={styles.modalTitle}>{modalTitle}</Text>
               <DateTimePicker
                 mode="date"
                 display="spinner"

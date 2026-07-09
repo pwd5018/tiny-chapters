@@ -26,7 +26,13 @@ import {
   getNotificationPermissionStatus,
   type AppPermissionStatus,
 } from "@/services/permissions/permissionService";
-import { getPhotoDurabilitySummary, retryPendingNasMatches, type NasRelinkSummary } from "@/services/photo/photoRelinkService";
+import {
+  getPhotoDurabilitySummary,
+  inspectPendingNasMatchRefs,
+  retryPendingNasMatches,
+  type NasRelinkSummary,
+  type PendingNasMatchDiagnostic,
+} from "@/services/photo/photoRelinkService";
 import { getActivePhotoSourceMode, isNasPhotoMatchingAvailable } from "@/services/photo/photoService";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import { maskToken, maskUrl, maskUserId } from "@/services/diagnostics/masking";
@@ -131,6 +137,11 @@ export type StartupDiagnosticsSummary = {
   photoApiReachable: boolean | null;
   notificationPermission: string;
   pendingNasMatches: number;
+};
+
+export type PendingNasMatchDiagnosticsResult = {
+  inspected: number;
+  items: PendingNasMatchDiagnostic[];
 };
 
 function createEventId() {
@@ -606,6 +617,24 @@ export async function runRelinkRetry(): Promise<NasRelinkSummary> {
     });
     throw error;
   }
+}
+
+export async function getPendingNasMatchDiagnostics(
+  limit = 5
+): Promise<PendingNasMatchDiagnosticsResult> {
+  const items = await inspectPendingNasMatchRefs({ limit });
+
+  await addDiagnosticsEvent({
+    category: "relink",
+    level: "info",
+    title: "Pending NAS match diagnostics captured",
+    detail: `Inspected ${items.length} pending photo reference${items.length === 1 ? "" : "s"}.`,
+  });
+
+  return {
+    inspected: items.length,
+    items,
+  };
 }
 
 export async function getNotificationDiagnostics(): Promise<NotificationDiagnostics> {

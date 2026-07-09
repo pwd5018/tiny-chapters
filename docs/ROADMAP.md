@@ -75,7 +75,21 @@ Future Codex sessions should check this file first when planning work. Mark phas
   1. Real iPhone Tailscale verification.
   2. Longer-session reconnect and failure-behavior validation.
 - Phase 13: Export
-  JSON, Markdown, readable archive format, and later PDF/book options.
+  Build the archive-export foundation for backup, reuse, and a later printed-book workflow without changing the current storage model.
+  Planned slices:
+  1. Phase 13.1: Export foundation
+     Define the canonical archive export schema plus service-layer filtering and mapping helpers. Preserve stable photo-manifest identity such as `photoId`, `path`, `filename`, `contentHash`, `takenAt`, `source`, and `syncStatus` so later workflows can reconnect to originals.
+  2. Phase 13.2: JSON and Markdown outputs
+     Generate machine-friendly JSON plus human-readable Markdown from the same canonical export model. Keep this honest about photo durability and reference-only storage.
+  3. Phase 13.3: Targeted export controls
+     Add first-pass export targeting such as date range and lightweight tag filtering through Settings, without spreading export UI back into Today.
+     Status: in progress. Settings now has first-pass date range, comma-separated tag filters, and a preview summary, but the phase still needs real runtime validation and may expand the targeting model later.
+  4. Phase 13.4: Book-builder-ready manifest polish
+     Refine the export metadata for a later local companion workflow that can gather the real photo files and assemble printable output.
+  Not in Phase 13:
+  - cloud photo sync
+  - original photo bundling inside the mobile app
+  - full PDF/book generation or print-service integration
 - Phase 14: Search Upgrade
   Advanced filters, person/tag/date/location, and later semantic search.
 - Phase 15: Memory Collections

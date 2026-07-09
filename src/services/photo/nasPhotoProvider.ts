@@ -5,6 +5,8 @@ import type {
   PagedPhotoResult,
   PhotoAsset,
   PhotoMatchCandidate,
+  PhotoMatchDiagnosticCandidate,
+  PhotoMatchDiagnosticResult,
   PhotoPagingParams,
   PhotoSearchParams,
 } from "@/types/photo";
@@ -373,6 +375,132 @@ export async function testNasPhotoConnection(
       message: "Cannot reach Photo API.",
       healthOk: false,
       authValid: false,
+    };
+  }
+}
+
+export async function inspectNasPhotoMatchCandidate(
+  baseUrl: string,
+  apiKey: string,
+  candidate: PhotoMatchCandidate
+): Promise<PhotoMatchDiagnosticResult> {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+
+  if (!normalizedBaseUrl || !apiKey) {
+    return {
+      status: "unavailable",
+      message: "NAS mode is missing the API base URL or API key.",
+    };
+  }
+
+  try {
+    const query = new URLSearchParams();
+
+    if (candidate.filename) {
+      query.set("filename", candidate.filename);
+    }
+    if (candidate.takenAt) {
+      query.set("takenAt", candidate.takenAt);
+    }
+    if (typeof candidate.fileSize === "number") {
+      query.set("fileSize", String(candidate.fileSize));
+    }
+    if (typeof candidate.width === "number") {
+      query.set("width", String(candidate.width));
+    }
+    if (typeof candidate.height === "number") {
+      query.set("height", String(candidate.height));
+    }
+    if (typeof candidate.toleranceMinutes === "number") {
+      query.set("toleranceMinutes", String(candidate.toleranceMinutes));
+    }
+
+    const response = await fetchWithTimeout(
+      `${normalizedBaseUrl}/photos/match?${query.toString()}`,
+      apiKey
+    );
+
+    if (response.status === 401) {
+      return {
+        status: "unauthorized",
+        message: "NAS Photo API key was rejected during photo-match diagnostics.",
+      };
+    }
+
+    if (response.status === 404) {
+      return {
+        status: "no_match",
+        message: "No confident NAS match was found for this photo candidate.",
+      };
+    }
+
+    if (response.status === 409) {
+      const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+      const candidates: PhotoMatchDiagnosticCandidate[] = Array.isArray(payload?.candidates)
+        ? payload.candidates
+            .map((entry) => {
+              if (!entry || typeof entry !== "object") {
+                return null;
+              }
+
+              const candidateRecord = entry as Record<string, unknown>;
+              const normalizedPhoto = normalizePhotoAsset(candidateRecord.photo);
+              const confidence =
+                typeof candidateRecord.confidence === "number"
+                  ? candidateRecord.confidence
+                  : null;
+
+              if (!normalizedPhoto || confidence === null) {
+                return null;
+              }
+
+              return {
+                confidence,
+                photo: normalizedPhoto,
+              };
+            })
+            .filter(
+              (entry): entry is PhotoMatchDiagnosticCandidate => entry !== null
+            )
+        : [];
+
+      return {
+        status: "ambiguous",
+        message: candidates.length
+          ? "Multiple NAS candidates were too close to call safely."
+          : "The NAS matcher reported an ambiguous result.",
+        candidates,
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        status: "error",
+        message: `Photo-match diagnostics returned HTTP ${response.status}.`,
+      };
+    }
+
+    const payload = (await response.json()) as Record<string, unknown>;
+    const matchedPhoto = normalizePhotoAsset(payload.photo);
+
+    if (!matchedPhoto) {
+      return {
+        status: "error",
+        message: "Photo-match diagnostics returned an invalid match payload.",
+      };
+    }
+
+    return {
+      status: "matched",
+      message: "A confident NAS photo match was found.",
+      confidence: typeof payload.confidence === "number" ? payload.confidence : undefined,
+      matchedPhoto,
+    };
+  } catch (error) {
+    logWarning("Photo match diagnostics request failed.", error);
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Photo-match diagnostics failed.",
     };
   }
 }

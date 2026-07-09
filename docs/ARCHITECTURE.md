@@ -46,6 +46,8 @@ Why this changed:
   Client-side gateway wrapper for guided follow-up and polish requests. The mobile app calls the local backend gateway instead of storing provider secrets in the Expo bundle.
 - `src/services/`
   Service boundaries for auth, memories, photos, reminders, diagnostics, and permissions.
+- `src/services/export/`
+  Phase 13 export boundary for archive schema mapping, export filtering, JSON/Markdown formatting, and save-first device-file handling. On Android it should prefer a remembered user-chosen export folder over hidden app storage whenever platform support allows it.
 - `src/types/`
   Domain models for memories, photos, and reminder settings.
 - `src/config/`
@@ -80,6 +82,8 @@ Supplemental:
   Keeps the in-progress writing draft separate from the Today landing screen so dashboard guidance can stay aware of write-state without reintroducing a second writing path. It now also holds the first Phase 10 guided-memory draft shape: base question, original answer, future follow-up slots, and composed memory text.
 - `dashboardService`
   Returns typed dashboard cards for the Today experience. The current lighter Today flow keeps this focused on prior-year On This Day memories and daily prompt guidance rather than draft, photo, or stats sections.
+- `exportService`
+  Phase 13 foundation for building a canonical archive export from existing memories. It should preserve enough photo identity for future book-building workflows without claiming to own original image binaries.
 - `DeveloperEnvironmentBanner`
   Developer-only runtime banner that exposes the current environment, runtime, photo source, Photo API URL, Supabase URL, and platform without showing secrets.
 
@@ -292,6 +296,22 @@ Platform note:
 - Pending relink state
   - `pending_nas_match` means the app has metadata only and is waiting for a safe NAS match.
   - Retry paths exist at app startup, memory detail, and Settings.
+
+## Phase 13 export model
+
+- Export should stay read-only and service-driven.
+- The canonical archive export should be built from the existing `Memory` model and attached photo refs rather than from new direct Supabase queries in screens.
+- The first user-facing entrypoint now lives in Settings, while Today and Moments remain focused on capture and browsing rather than export management.
+- Export should include:
+  - memory text, prompt, date, tags, and timestamps
+  - guided-writing context when present
+  - photo manifest entries with stable identity fields such as `photoId`, `path`, `filename`, `contentHash`, `takenAt`, `source`, and `syncStatus`
+  - archive metadata such as schema version, export timestamp, and filter summary
+- Export should not include:
+  - original photo binaries
+  - secrets, auth state, or environment values
+  - claims that every exported photo is presently reachable on-device
+- Later book-builder work should be able to consume the canonical export and resolve actual originals from NAS or local storage in a separate local workflow.
 
 ## Phase-history discrepancy note
 
