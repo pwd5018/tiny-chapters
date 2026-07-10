@@ -154,6 +154,27 @@ function Read-EnvFile {
   return $values
 }
 
+function Get-ConfigValue {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Key
+  )
+
+  $processValue = [Environment]::GetEnvironmentVariable($Key)
+  if (-not [string]::IsNullOrWhiteSpace($processValue)) {
+    return $processValue
+  }
+
+  $envPath = Join-Path (Get-WorkspaceRoot) ".env"
+  $appEnv = Read-EnvFile -Path $envPath
+
+  if ($appEnv.ContainsKey($Key) -and -not [string]::IsNullOrWhiteSpace($appEnv[$Key])) {
+    return $appEnv[$Key]
+  }
+
+  return $null
+}
+
 function Get-PortListener {
   param(
     [int]$Port = $script:MetroPort
@@ -247,11 +268,16 @@ function Get-AuthorizedAdbDevices {
 }
 
 function Get-PreferredDevHost {
-  if ($env:EXPO_DEV_SERVER_HOST) {
+  $configuredHost = Get-ConfigValue -Key "EXPO_DEV_SERVER_HOST"
+  if ($configuredHost) {
     return [pscustomobject]@{
-      Host = $env:EXPO_DEV_SERVER_HOST
-      Source = "EXPO_DEV_SERVER_HOST"
-      Candidates = @($env:EXPO_DEV_SERVER_HOST)
+      Host = $configuredHost
+      Source = if (-not [string]::IsNullOrWhiteSpace($env:EXPO_DEV_SERVER_HOST)) {
+        "EXPO_DEV_SERVER_HOST env"
+      } else {
+        ".env EXPO_DEV_SERVER_HOST"
+      }
+      Candidates = @($configuredHost)
     }
   }
 

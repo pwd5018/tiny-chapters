@@ -16,7 +16,7 @@ if ($authorizedDevices.Count -eq 0) {
 
 $hostInfo = Get-PreferredDevHost
 if (-not $hostInfo.Host) {
-  throw "Could not determine a usable LAN IPv4 address. Set EXPO_DEV_SERVER_HOST and rerun the command."
+  throw "Could not determine a usable dev-server host. Set EXPO_DEV_SERVER_HOST in your shell or .env and rerun the command."
 }
 
 $metroStatus = Test-MetroOnPort

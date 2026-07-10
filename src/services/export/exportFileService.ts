@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
-import { Linking, Platform } from "react-native";
+import { Platform } from "react-native";
 
 const EXPORT_DIRECTORY_NAME = "tiny-chapters-exports";
 const EXPORT_DIRECTORY_LABEL = "Tiny Chapters Exports";
@@ -155,21 +155,6 @@ export async function saveExportTextFile(options: {
     directoryLabel: EXPORT_DIRECTORY_LABEL,
     storageMode: "app-documents",
   };
-}
-
-export async function openExportFile(uri: string) {
-  const openUri =
-    Platform.OS === "android" && uri.startsWith("file:")
-      ? await FileSystem.getContentUriAsync(uri)
-      : uri;
-
-  const supported = await Linking.canOpenURL(openUri);
-
-  if (!supported) {
-    throw new Error("This device could not open the saved export file directly.");
-  }
-
-  await Linking.openURL(openUri);
 }
 
 export function getExportDirectoryLabel() {

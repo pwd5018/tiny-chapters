@@ -84,6 +84,13 @@ if ($metroStatus.IsMetro) {
   Add-Result -Label "Metro 8081" -Status "WARN" -Details "Metro is not running on port 8081."
 }
 
+$devHostInfo = Get-PreferredDevHost
+if ($devHostInfo.Host) {
+  Add-Result -Label "Dev host" -Status "OK" -Details "$($devHostInfo.Host) via $($devHostInfo.Source)."
+} else {
+  Add-Result -Label "Dev host" -Status "WARN" -Details "No explicit EXPO_DEV_SERVER_HOST is configured; launch scripts will auto-detect a host."
+}
+
 $envPath = Join-Path $workspaceRoot ".env"
 $appEnv = Read-EnvFile -Path $envPath
 $requiredAppEnv = @(

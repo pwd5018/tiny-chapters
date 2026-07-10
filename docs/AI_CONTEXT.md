@@ -33,6 +33,7 @@ Implemented in the repo now:
 - Hidden Developer Mode and Diagnostics screen
 - Installed Expo Development Build workflow with `expo-dev-client`
 - Fixed-port Metro workflow on `8081` plus PowerShell `doctor`, `rebuild`, and `android:launch` tooling
+- `EXPO_DEV_SERVER_HOST` can now be pinned in the repo-root `.env` for persistent Metro host selection, including Tailscale dev-client launches
 - Developer-only startup environment banner and startup diagnostics
 - Centralized permission helpers for notifications, camera, and photo-library access
 - iOS readiness diagnostics for bundle id, permission status, Photo API URL, and NAS warning checks

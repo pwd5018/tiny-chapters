@@ -22,7 +22,6 @@ import {
   chooseAndroidExportDirectory,
   createExportFilename,
   getExportDirectoryState,
-  openExportFile,
   saveExportTextFile,
 } from "@/services/export/exportFileService";
 import {
@@ -167,7 +166,6 @@ export default function SettingsScreen() {
     directoryLabel: string;
     storageMode: "android-user-folder" | "app-documents";
   } | null>(null);
-  const [isOpeningLastExport, setIsOpeningLastExport] = useState(false);
   const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
   const [developerTapCount, setDeveloperTapCount] = useState(0);
   const notificationsSupported = isReminderNotificationsSupported();
@@ -556,26 +554,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleOpenLastExport = async () => {
-    if (!lastSavedExport) {
-      return;
-    }
-
-    setIsOpeningLastExport(true);
-
-    try {
-      await openExportFile(lastSavedExport.uri);
-    } catch (error) {
-      setExportMessage(
-        error instanceof Error
-          ? error.message
-          : "Tiny Chapters could not open that export file directly."
-      );
-    } finally {
-      setIsOpeningLastExport(false);
-    }
-  };
-
   const handleChooseExportDirectory = async () => {
     setIsChoosingExportDirectory(true);
     setExportMessage("");
@@ -903,19 +881,6 @@ export default function SettingsScreen() {
               <Text style={styles.secondaryButtonText}>Export Markdown Archive</Text>
             )}
           </Pressable>
-          {lastSavedExport ? (
-            <Pressable
-              style={styles.secondaryButton}
-              onPress={() => void handleOpenLastExport()}
-              disabled={isOpeningLastExport}
-            >
-              {isOpeningLastExport ? (
-                <ActivityIndicator color={theme.colors.accent} />
-              ) : (
-                <Text style={styles.secondaryButtonText}>Open Last Export</Text>
-              )}
-            </Pressable>
-          ) : null}
         </View>
 
         {exportMessage ? <Text style={styles.connectionMessage}>{exportMessage}</Text> : null}
