@@ -68,6 +68,11 @@ Current next-phase plan:
 - The next app-roadmap phase is Phase 16: Memory Collections.
 - Phase 16 should add meaningful larger groupings for memories such as vacations, school years, holidays, and kid-specific chapters without undoing the calmer Today plus dedicated Write flow that now exists.
 - Phase 16 should treat collections as durable archive structure, not just a thin tag preset layer.
+- Phase 16 collection data foundation and repository groundwork are now in the repo: Supabase collection tables exist, memories can belong to multiple collections, and `memoryService` owns collection CRUD plus grouped collection queries for future screens.
+- Moments now includes a first collection-browsing pass with a collections section at the top of the archive plus a dedicated collection detail screen for drilling into the memories inside one larger chapter.
+- Write and memory detail now include a lightweight collection-assignment surface so memories can be added to larger chapters without turning the main composition flow into a heavy metadata form.
+- Search now supports collection-based filtering alongside the existing text, tag, date, guided, and photo-state filters, and export payloads now preserve collection membership so archive consumers can keep larger chapters intact.
+- The collection-assignment flow now includes manual-first starter templates for Vacation, School Year, Holiday, and Kid Chapter so people can start with familiar chapter shapes before renaming them.
 - The first planned slices are:
   1. collection data foundation
   2. collection repository/service seam
@@ -75,6 +80,8 @@ Current next-phase plan:
   4. lightweight collection assignment flows
   5. search/export integration
   6. manual-first starter templates
+- Phase 16 is now complete.
+- The next implementation slice should be Phase 17: AI Cleanup and Enrichment.
 - The next print-focused step should live in a separate local companion workflow that reads the Tiny Chapters export, resolves actual photo files, and assembles print-ready output.
 
 ## Tech stack

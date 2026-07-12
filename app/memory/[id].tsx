@@ -16,6 +16,9 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { DatePickerField } from "@/components/DatePickerField";
 import { useMemoryService } from "@/services/memoryService";
 import {
+  CollectionAssignmentCard,
+} from "@/components/CollectionAssignmentCard";
+import {
   getAttachedPhotoDisplayName,
   getAttachedPhotoPreviewUri,
   getAttachedPhotoSourceLabel,
@@ -161,6 +164,7 @@ export default function MemoryDetailScreen() {
   const [prompt, setPrompt] = useState("");
   const [text, setText] = useState("");
   const [tagsInput, setTagsInput] = useState("");
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -179,6 +183,7 @@ export default function MemoryDetailScreen() {
     setPrompt(nextMemory.prompt);
     setText(nextMemory.text);
     setTagsInput(nextMemory.tags.join(", "));
+    setSelectedCollectionIds(nextMemory.collections.map((collection) => collection.id));
     setAttachments(attachmentScope, nextMemory.attachedPhotos);
   };
 
@@ -279,6 +284,7 @@ export default function MemoryDetailScreen() {
         text: trimmedText,
         tags: parseTagsInput(tagsInput),
         guidedContext: memory.guidedContext ?? null,
+        collectionIds: selectedCollectionIds,
       });
       await updateMemoryPhotoRefs(memory.id, selectedAttachments);
       const reloadedMemory = await getMemoryById(memory.id);
@@ -441,6 +447,15 @@ export default function MemoryDetailScreen() {
                 </View>
               )}
             </View>
+
+            <CollectionAssignmentCard
+              editable={isEditing}
+              title="Collections"
+              helperText="Use collections for bigger chapters without turning every memory into a heavy form."
+              emptyText="This memory is not part of a larger collection yet."
+              selectedCollectionIds={selectedCollectionIds}
+              onChange={setSelectedCollectionIds}
+            />
 
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeaderRow}>

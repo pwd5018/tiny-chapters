@@ -18,6 +18,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FadeInView } from "@/components/FadeInView";
+import { CollectionAssignmentCard } from "@/components/CollectionAssignmentCard";
 import { DatePickerField } from "@/components/DatePickerField";
 import { ScreenHero } from "@/components/ScreenHero";
 import {
@@ -169,6 +170,7 @@ export function WriteMemoryScreen() {
   const [polishDebugStatus, setPolishDebugStatus] = useState<AiDebugStatus | null>(null);
   const [dailyPrompt, setDailyPrompt] = useState("What made today worth remembering?");
   const [sameDayMemoryCount, setSameDayMemoryCount] = useState(0);
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
 
   const followUps = guidedMemoryDraft?.followUps ?? [];
   const answeredFollowUps = followUps.filter((followUp) => followUp.status === "answered");
@@ -300,10 +302,12 @@ export function WriteMemoryScreen() {
         text: trimmed,
         tags: [],
         guidedContext: createMemoryGuidanceContext(guidedMemoryDraft),
+        collectionIds: selectedCollectionIds,
         attachedPhotos: selectedAttachments,
       });
 
       clearDraft();
+      setSelectedCollectionIds([]);
       clearAttachmentsForScope(attachmentScope);
       router.replace("/(tabs)" as never);
     } catch (error) {
@@ -774,6 +778,17 @@ export function WriteMemoryScreen() {
                 </>
               )}
             </View>
+          </FadeInView>
+
+          <FadeInView delay={120}>
+            <CollectionAssignmentCard
+              editable
+              title="Collections"
+              helperText="Optional larger chapters like a trip, school year, holiday, or one kid's season of life."
+              emptyText="Leave this empty when the memory stands on its own."
+              selectedCollectionIds={selectedCollectionIds}
+              onChange={setSelectedCollectionIds}
+            />
           </FadeInView>
 
           <FadeInView delay={140}>

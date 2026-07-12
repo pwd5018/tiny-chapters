@@ -6,6 +6,7 @@ import {
 import type { Memory } from "@/types/memory";
 import type {
   MemoryArchiveExport,
+  MemoryExportCollectionSummary,
   MemoryExportDateRangeSummary,
   MemoryExportEntry,
   MemoryExportFilters,
@@ -17,7 +18,7 @@ import type {
   MemoryExportTagSummary,
 } from "@/types/export";
 
-const EXPORT_SCHEMA_VERSION = "2026-07-phase13-v2" as const;
+const EXPORT_SCHEMA_VERSION = "2026-07-phase16-v1" as const;
 
 function normalizeDateBoundary(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -144,6 +145,11 @@ function mapMemoryToExportEntry(memory: Memory): MemoryExportEntry {
     prompt: memory.prompt,
     text: memory.text,
     tags: memory.tags,
+    collections: memory.collections.map((collection) => ({
+      id: collection.id,
+      title: collection.title,
+      kind: collection.kind,
+    })),
     guidedContext: memory.guidedContext,
     attachedPhotoCount: memory.attachedPhotos.length,
     photoManifest: memory.attachedPhotos.map((photo) => ({
@@ -270,6 +276,30 @@ function buildTagSummary(memories: MemoryExportEntry[]): MemoryExportTagSummary 
   };
 }
 
+function buildCollectionSummary(memories: MemoryExportEntry[]): MemoryExportCollectionSummary {
+  const collectionFrequency = new Map<string, number>();
+
+  for (const memory of memories) {
+    for (const collection of memory.collections) {
+      collectionFrequency.set(
+        collection.title,
+        (collectionFrequency.get(collection.title) ?? 0) + 1
+      );
+    }
+  }
+
+  const collectionTitles = [...collectionFrequency.keys()].sort((left, right) =>
+    left.localeCompare(right)
+  );
+
+  return {
+    collectionCount: collectionTitles.length,
+    collectionFrequency: Object.fromEntries(
+      collectionTitles.map((title) => [title, collectionFrequency.get(title) ?? 0] as const)
+    ),
+  };
+}
+
 function buildPrintReadinessSummary(
   memories: MemoryExportEntry[]
 ): MemoryExportPrintReadinessSummary {
@@ -372,6 +402,7 @@ export function buildMemoryArchiveExport(
     summary: buildExportSummary(exportEntries),
     dateRangeSummary: buildDateRangeSummary(exportEntries),
     tagSummary: buildTagSummary(exportEntries),
+    collectionSummary: buildCollectionSummary(exportEntries),
     printReadinessSummary: buildPrintReadinessSummary(exportEntries),
     pendingNasMatchRefs: buildPhotoAttentionRefs(exportEntries, "pending_nas_match"),
     missingPhotoRefs: buildPhotoAttentionRefs(exportEntries, "missing"),

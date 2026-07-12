@@ -17,7 +17,7 @@ import { ScreenHero } from "@/components/ScreenHero";
 import { toLocalDateKey } from "@/lib/dates";
 import { useMemoryService } from "@/services/memoryService";
 import { theme } from "@/theme/theme";
-import type { Memory, AttachedPhotoSyncStatus } from "@/types/memory";
+import type { Memory, AttachedPhotoSyncStatus, MemoryCollection } from "@/types/memory";
 
 const PHOTO_STATUS_FILTERS: Array<{
   key: AttachedPhotoSyncStatus;
@@ -37,6 +37,7 @@ function parseTagFilters(value: string) {
 function buildFilterSummary(options: {
   query: string;
   tagFilters: string[];
+  selectedCollections: MemoryCollection[];
   fromEnabled: boolean;
   fromDate: string;
   toEnabled: boolean;
@@ -53,6 +54,12 @@ function buildFilterSummary(options: {
 
   if (options.tagFilters.length) {
     parts.push(`tags ${options.tagFilters.map((tag) => `#${tag}`).join(", ")}`);
+  }
+
+  if (options.selectedCollections.length) {
+    parts.push(
+      `collections ${options.selectedCollections.map((collection) => collection.title).join(", ")}`
+    );
   }
 
   if (options.fromEnabled || options.toEnabled) {
@@ -105,9 +112,10 @@ function FilterPill({
 }
 
 export default function SearchScreen() {
-  const { searchMemories } = useMemoryService();
+  const { getCollections, searchMemories } = useMemoryService();
   const [query, setQuery] = useState("");
   const [tagInput, setTagInput] = useState("");
+  const [collections, setCollections] = useState<MemoryCollection[]>([]);
   const [results, setResults] = useState<Memory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -117,16 +125,22 @@ export default function SearchScreen() {
   const [toDate, setToDate] = useState(() => toLocalDateKey(new Date()));
   const [photosOnly, setPhotosOnly] = useState(false);
   const [guidedOnly, setGuidedOnly] = useState(false);
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
   const [selectedPhotoStatuses, setSelectedPhotoStatuses] = useState<AttachedPhotoSyncStatus[]>(
     []
   );
 
   const tagFilters = useMemo(() => parseTagFilters(tagInput), [tagInput]);
+  const selectedCollections = useMemo(
+    () => collections.filter((collection) => selectedCollectionIds.includes(collection.id)),
+    [collections, selectedCollectionIds]
+  );
   const filterSummary = useMemo(
     () =>
       buildFilterSummary({
         query,
         tagFilters,
+        selectedCollections,
         fromEnabled,
         fromDate,
         toEnabled,
@@ -139,6 +153,7 @@ export default function SearchScreen() {
       fromDate,
       fromEnabled,
       guidedOnly,
+      selectedCollections,
       photosOnly,
       query,
       selectedPhotoStatuses,
@@ -156,18 +171,23 @@ export default function SearchScreen() {
       setErrorMessage("");
 
       try {
-        const nextResults = await searchMemories({
+        const [nextResults, nextCollections] = await Promise.all([
+          searchMemories({
           query,
           from: fromEnabled ? fromDate : null,
           to: toEnabled ? toDate : null,
           tags: tagFilters,
+          collectionIds: selectedCollectionIds,
           hasPhotos: photosOnly || selectedPhotoStatuses.length ? true : undefined,
           hasGuidedContext: guidedOnly ? true : undefined,
           photoStatuses: selectedPhotoStatuses,
-        });
+          }),
+          getCollections(),
+        ]);
 
         if (isActive) {
           setResults(nextResults);
+          setCollections(nextCollections);
         }
       } catch (error) {
         if (isActive) {
@@ -188,12 +208,14 @@ export default function SearchScreen() {
   }, [
     fromDate,
     fromEnabled,
-    guidedOnly,
-    photosOnly,
-    query,
-    searchMemories,
-    selectedPhotoStatuses,
-    tagFilters,
+      guidedOnly,
+      getCollections,
+      photosOnly,
+      query,
+      selectedCollectionIds,
+      searchMemories,
+      selectedPhotoStatuses,
+      tagFilters,
     toDate,
     toEnabled,
   ]);
@@ -209,6 +231,7 @@ export default function SearchScreen() {
     setToDate(toLocalDateKey(new Date()));
     setPhotosOnly(false);
     setGuidedOnly(false);
+    setSelectedCollectionIds([]);
     setSelectedPhotoStatuses([]);
   };
 
@@ -236,7 +259,7 @@ export default function SearchScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search by memory text, prompt, tag, date, or photo details"
+            placeholder="Search by memory text, prompt, tag, collection, date, or photo details"
             placeholderTextColor={theme.colors.textSoft}
             style={styles.searchInput}
           />
@@ -252,6 +275,35 @@ export default function SearchScreen() {
             placeholderTextColor={theme.colors.textSoft}
             style={styles.searchInput}
           />
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.groupLabel}>Collections</Text>
+            {collections.length ? (
+              <View style={styles.filterWrapRow}>
+                {collections.map((collection) => {
+                  const active = selectedCollectionIds.includes(collection.id);
+                  return (
+                    <FilterPill
+                      key={collection.id}
+                      label={collection.title}
+                      active={active}
+                      onPress={() =>
+                        setSelectedCollectionIds((current) =>
+                          current.includes(collection.id)
+                            ? current.filter((id) => id !== collection.id)
+                            : [...current, collection.id]
+                        )
+                      }
+                    />
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.helperText}>
+                Create collections from Write or memory detail and they will show up here.
+              </Text>
+            )}
+          </View>
 
           <View style={styles.filterGroup}>
             <Text style={styles.groupLabel}>Date filters</Text>

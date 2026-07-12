@@ -39,6 +39,7 @@ export type MemorySearchFilters = {
   from?: string | null;
   to?: string | null;
   tags?: string[];
+  collectionIds?: string[];
   hasPhotos?: boolean;
   hasGuidedContext?: boolean;
   photoStatuses?: AttachedPhotoSyncStatus[];
@@ -48,6 +49,7 @@ type MemoryRepository = {
   getMemories: () => Promise<Memory[]>;
   getCollections: () => Promise<MemoryCollection[]>;
   getCollectionById: (id: string) => Promise<MemoryCollection | null>;
+  getMemoriesForCollection: (collectionId: string) => Promise<Memory[]>;
   getOnThisDayMemories: (date: Date, options?: { limit?: number }) => Promise<Memory[]>;
   getMemoryCountForDate: (date: Date) => Promise<number>;
   getRandomResurfacedMemory: (
@@ -105,6 +107,10 @@ function normalizeSearchTags(tags: string[] | undefined) {
   return [...new Set((tags ?? []).map((tag) => normalizeSearchValue(tag)).filter(Boolean))];
 }
 
+function normalizeSearchCollectionIds(collectionIds: string[] | undefined) {
+  return [...new Set((collectionIds ?? []).map((id) => id.trim()).filter(Boolean))];
+}
+
 function normalizeSearchFilters(queryOrFilters: string | MemorySearchFilters): MemorySearchFilters {
   if (typeof queryOrFilters === "string") {
     return {
@@ -117,6 +123,7 @@ function normalizeSearchFilters(queryOrFilters: string | MemorySearchFilters): M
     from: queryOrFilters.from?.trim() ? queryOrFilters.from.slice(0, 10) : null,
     to: queryOrFilters.to?.trim() ? queryOrFilters.to.slice(0, 10) : null,
     tags: normalizeSearchTags(queryOrFilters.tags),
+    collectionIds: normalizeSearchCollectionIds(queryOrFilters.collectionIds),
     hasPhotos: queryOrFilters.hasPhotos,
     hasGuidedContext: queryOrFilters.hasGuidedContext,
     photoStatuses: [...new Set(queryOrFilters.photoStatuses ?? [])],
@@ -167,6 +174,17 @@ function matchesStructuredFilters(memory: Memory, filters: MemorySearchFilters) 
     const hasAllTags = filters.tags.every((tag) => memoryTags.has(tag));
 
     if (!hasAllTags) {
+      return false;
+    }
+  }
+
+  if (filters.collectionIds?.length) {
+    const memoryCollectionIds = new Set(memory.collections.map((collection) => collection.id));
+    const hasAnyCollection = filters.collectionIds.some((collectionId) =>
+      memoryCollectionIds.has(collectionId)
+    );
+
+    if (!hasAnyCollection) {
       return false;
     }
   }
@@ -374,6 +392,23 @@ async function fetchCollectionMembershipRowsByMemoryIds(memoryIds: string[]) {
   return (data ?? []) as SupabaseMemoryCollectionMembershipRow[];
 }
 
+async function fetchCollectionMembershipRowsByCollectionId(collectionId: string) {
+  const supabase = getSupabaseClient();
+  const userId = await getUserIdOrThrow();
+  const { data, error } = await supabase
+    .from("memory_collection_memberships")
+    .select("id, collection_id, memory_id, user_id, added_at")
+    .eq("user_id", userId)
+    .eq("collection_id", collectionId)
+    .order("added_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as SupabaseMemoryCollectionMembershipRow[];
+}
+
 async function fetchCollectionMembershipCountsByCollectionIds(collectionIds: string[]) {
   if (!collectionIds.length) {
     return new Map<string, number>();
@@ -455,6 +490,27 @@ async function fetchMemoryRowsForUser(userId: string) {
     .from("memories")
     .select("id, user_id, date, prompt, text, tags, guided_context, created_at, updated_at")
     .eq("user_id", userId)
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as SupabaseMemoryRow[];
+}
+
+async function fetchMemoryRowsByIds(userId: string, memoryIds: string[]) {
+  if (!memoryIds.length) {
+    return [] as SupabaseMemoryRow[];
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("memories")
+    .select("id, user_id, date, prompt, text, tags, guided_context, created_at, updated_at")
+    .eq("user_id", userId)
+    .in("id", memoryIds)
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -581,6 +637,18 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       data as SupabaseMemoryCollectionRow,
       countsByCollectionId.get(id) ?? 0
     );
+  };
+
+  const getMemoriesForCollection = async (collectionId: string) => {
+    const userId = await getUserIdOrThrow();
+    const membershipRows = await fetchCollectionMembershipRowsByCollectionId(collectionId);
+    const memoryIds = membershipRows.map((row) => row.memory_id);
+
+    if (!memoryIds.length) {
+      return [];
+    }
+
+    return loadMemoriesFromRows(await fetchMemoryRowsByIds(userId, memoryIds));
   };
 
   const getMemoryById = async (id: string) => {
@@ -989,6 +1057,7 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       getMemories,
       getCollections,
       getCollectionById,
+      getMemoriesForCollection,
       getOnThisDayMemories,
       getMemoryCountForDate,
       getRandomResurfacedMemory,

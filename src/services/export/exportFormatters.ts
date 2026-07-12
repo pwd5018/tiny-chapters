@@ -89,6 +89,16 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
     lines.push("- Exported tags: none");
   }
 
+  if (payload.collectionSummary.collectionCount) {
+    lines.push(
+      `- Collections: ${Object.entries(payload.collectionSummary.collectionFrequency)
+        .map(([title, count]) => `${escapeMarkdown(title)} (${count})`)
+        .join(", ")}`
+    );
+  } else {
+    lines.push("- Collections: none");
+  }
+
   lines.push("");
   lines.push("## Archive Notes");
   lines.push("");
@@ -127,6 +137,15 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
       if (memory.tags.length) {
         lines.push("");
         lines.push(`**Tags:** ${memory.tags.map((tag) => `\`${escapeMarkdown(tag)}\``).join(", ")}`);
+      }
+
+      if (memory.collections.length) {
+        lines.push("");
+        lines.push(
+          `**Collections:** ${memory.collections
+            .map((collection) => `\`${escapeMarkdown(collection.title)}\``)
+            .join(", ")}`
+        );
       }
 
       if (memory.guidedContext) {

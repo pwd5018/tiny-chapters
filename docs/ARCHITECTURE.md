@@ -59,6 +59,8 @@ Why this changed:
 
 - `memoryService`
   Repository-style boundary for CRUD, search, daily prompt selection, resurfacing queries, `memory_photo_refs` persistence, and the first collection/grouping seam. Search now supports model-driven filtering over text, tags, date range, guided context, and photo durability state. Daily prompt selection is now the service seam that can use AI plus same-day prompt history without pushing that logic into screens. Phase 16 collection work should extend this service instead of teaching screens to assemble collection membership directly from Supabase rows. Screens should not query Supabase directly for memory data.
+  Current collection groundwork inside this seam now includes collection CRUD, memory-to-collection membership writes, and grouped reads such as loading the memories that belong to a collection.
+  Search now also understands collection membership as a structured filter rather than treating larger chapters as text-only decoration.
 - `photoService`
   Selects the active provider (`mock` or `nas`) and exposes shared operations such as date lookup, search, folders, connection tests, and match requests.
 - `nasPhotoProvider`
@@ -84,6 +86,7 @@ Supplemental:
   Returns typed dashboard cards for the Today experience. The current lighter Today flow keeps this focused on daily prompt guidance plus memory resurfacing such as prior-year On This Day and a random older-memory card rather than draft, photo, or stats sections.
 - `exportService`
   Phase 13 foundation for building a canonical archive export from existing memories. It preserves enough photo identity plus print-readiness metadata for future book-building workflows without claiming to own original image binaries.
+  Phase 16 extends that export seam so collection membership survives in the archive payload and formatted Markdown output instead of disappearing outside the app.
 - `DeveloperEnvironmentBanner`
   Developer-only runtime banner that exposes the current environment, runtime, photo source, current Metro dev-server URL/path, Photo API URL/path, Supabase URL, and platform without showing secrets.
 
@@ -104,6 +107,9 @@ Phase 11 result:
 - The redesigned Today header is intentionally slim: app name plus date, then the dashboard flow. It should stay calmer than Moments and should not become a second full composition screen again.
 - The dedicated `write` route now owns the fuller memory-composition experience, while the Moments tab owns browsing/stats instead of asking Today to do both jobs at once.
 - Phase 16 should follow the same IA rule: larger archive groupings belong in Moments-first collection browsing rather than adding another dense archive section to Today.
+- The first collection-browsing pass now follows that rule directly: `app/(tabs)/timeline.tsx` surfaces collection cards above the recent-memory list, and `app/collection/[id].tsx` drills into one collection's memories without changing Today or expanding Write.
+- The first collection-assignment pass follows the same rule too: `src/features/write/WriteMemoryScreen.tsx` offers optional save-time collection assignment, while `app/memory/[id].tsx` provides stronger post-save collection editing. This keeps Write focused on the memory first instead of turning it into a taxonomy screen.
+- Manual-first starter templates now extend that same assignment surface instead of creating a new management flow. The current template set is Vacation, School Year, Holiday, and Kid Chapter, and it is intentionally manual-first rather than AI-driven.
 - Early Phase 10 groundwork should stay inside the dedicated `write` route until the guided-question UX is proven. Today may launch the flow, but should not become the place where multi-step guided writing happens.
 - Phase 11 followed the same IA guardrail: photo-source improvements launch from Write, but Today does not become the place where device-library management or multi-step photo browsing lives.
 

@@ -113,21 +113,25 @@ Future Codex sessions should check this file first when planning work. Mark phas
   3. Phase 15.3: Random memory resurfacing on Today
      Add a calm Today dashboard card that shows one older memory on load and can fetch another random resurfaced memory from a configurable timeframe without crowding Moments or turning Today into a dense archive browser.
 - Phase 16: Memory Collections
-  Planned.
-  Tiny Chapters should gain meaningful larger groupings for memories such as vacations, school years, holidays, and kid-specific chapters without undoing the calmer Today plus dedicated Write flow that now exists. This phase should treat collections as durable archive structure rather than just leaning harder on free-form tags.
-  Planned slices:
+  Completed.
+  Tiny Chapters is gaining meaningful larger groupings for memories such as vacations, school years, holidays, and kid-specific chapters without undoing the calmer Today plus dedicated Write flow that now exists. This phase treats collections as durable archive structure rather than just leaning harder on free-form tags.
+  Completed slices:
   1. Phase 16.1: Collection data foundation
-     Add first-class collection storage and memory-to-collection membership so one memory can belong to multiple larger chapters. Preserve the existing memory model and keep this groundwork service-driven rather than screen-driven.
+     First-class collection storage and memory-to-collection membership now exist so one memory can belong to multiple larger chapters. The groundwork stays service-driven rather than screen-driven.
   2. Phase 16.2: Collection repository seam
-     Extend `memoryService` with collection CRUD, membership assignment, and grouped queries so screens can load archive structure without shaping Supabase data directly.
+     `memoryService` now includes collection CRUD, membership assignment, and collection-to-memory grouped queries so future screens can load archive structure without shaping Supabase data directly.
   3. Phase 16.3: Moments-first collection browsing
-     Upgrade the Moments experience to surface collections as a richer archive entry point, then allow drill-in to a collection detail view instead of asking Today to absorb more archive browsing.
+     Completed.
+     Moments now surfaces collections as a richer archive entry point and allows drill-in to a collection detail view instead of asking Today to absorb more archive browsing.
   4. Phase 16.4: Lightweight assignment flows
-     Let users place memories into collections without turning Write into a metadata form. Prefer optional assignment at save time plus stronger edit/detail assignment tools over a heavy compose flow.
+     Completed.
+     Tiny Chapters now lets users place memories into collections from the dedicated Write flow and the memory-detail screen without turning composition into a metadata-heavy checklist. Collection assignment stays optional at save time and stronger after save.
   5. Phase 16.5: Search and export integration
-     Make collections filterable in archive search and include collection membership in exports so later local/book workflows can preserve the larger story structure.
+     Completed.
+     Collections are now filterable in archive search and collection membership now flows through the export model and human-readable export formatting so later local/book workflows can preserve larger story structure instead of flattening everything back to tags alone.
   6. Phase 16.6: Manual-first starter templates
-     Start with manual collections plus helpful templates or presets such as Vacation, School Year, Holiday, and Kid Chapter. AI suggestion or auto-classification work belongs later, not in the first collection pass.
+     Completed.
+     The collection-assignment flow now includes manual-first starter templates for Vacation, School Year, Holiday, and Kid Chapter so users can start from a familiar chapter shape without needing AI suggestion or a separate management screen.
 - Phase 17: AI Cleanup and Enrichment
   Clean up text, generate titles, suggest tags, and never overwrite originals without explicit user confirmation.
 - Phase 18: Year in Review

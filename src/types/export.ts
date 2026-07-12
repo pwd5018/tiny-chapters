@@ -1,4 +1,15 @@
-import type { AttachedPhotoSource, AttachedPhotoSyncStatus, MemoryGuidanceContext } from "@/types/memory";
+import type {
+  AttachedPhotoSource,
+  AttachedPhotoSyncStatus,
+  MemoryCollectionKind,
+  MemoryGuidanceContext,
+} from "@/types/memory";
+
+export type MemoryExportCollectionEntry = {
+  id: string;
+  title: string;
+  kind: MemoryCollectionKind;
+};
 
 export type MemoryExportPhotoManifestEntry = {
   photoId: string;
@@ -38,6 +49,7 @@ export type MemoryExportEntry = {
   prompt: string;
   text: string;
   tags: string[];
+  collections: MemoryExportCollectionEntry[];
   guidedContext: MemoryGuidanceContext | null;
   attachedPhotoCount: number;
   photoManifest: MemoryExportPhotoManifestEntry[];
@@ -100,14 +112,20 @@ export type MemoryExportPrintReadinessSummary = {
   memoriesRequiringPhotoAttentionCount: number;
 };
 
+export type MemoryExportCollectionSummary = {
+  collectionCount: number;
+  collectionFrequency: Record<string, number>;
+};
+
 export type MemoryArchiveExport = {
-  schemaVersion: "2026-07-phase13-v2";
+  schemaVersion: "2026-07-phase16-v1";
   exportType: "tiny-chapters-archive";
   exportedAt: string;
   filters: MemoryExportFilterSummary;
   summary: MemoryExportSummary;
   dateRangeSummary: MemoryExportDateRangeSummary;
   tagSummary: MemoryExportTagSummary;
+  collectionSummary: MemoryExportCollectionSummary;
   printReadinessSummary: MemoryExportPrintReadinessSummary;
   pendingNasMatchRefs: MemoryExportPhotoAttentionEntry[];
   missingPhotoRefs: MemoryExportPhotoAttentionEntry[];
