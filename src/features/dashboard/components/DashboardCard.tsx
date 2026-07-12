@@ -65,6 +65,32 @@ export function DashboardCard({
         </View>
       ) : null}
 
+      {card.type === "resurfaced_memory" && card.payload.state === "ready" ? (
+        <View style={styles.memoryList}>
+          <View style={styles.memoryRow}>
+            <View style={styles.memoryMetaRow}>
+              <Text style={styles.memoryYearLabel}>
+                {new Date(card.payload.memory.date).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </Text>
+              <Text style={styles.memoryPhotoCount}>
+                {card.payload.memory.photoCount}{" "}
+                {card.payload.memory.photoCount === 1 ? "photo" : "photos"}
+              </Text>
+            </View>
+            <Text style={styles.memoryPrompt} numberOfLines={1}>
+              {card.payload.memory.prompt}
+            </Text>
+            <Text style={styles.memoryText} numberOfLines={4}>
+              {card.payload.memory.text}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
       {card.action ? (
         <Pressable
           style={({ pressed }) => [styles.action, pressed ? styles.actionPressed : null]}

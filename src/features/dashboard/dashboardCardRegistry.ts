@@ -17,6 +17,10 @@ const dashboardCardRegistry: Record<DashboardCardType, DashboardCardDefinition> 
     eyebrow: "On This Day",
     tone: "default",
   },
+  resurfaced_memory: {
+    eyebrow: "Resurfaced Memory",
+    tone: "default",
+  },
   system_notice: {
     eyebrow: "Notice",
     tone: "default",

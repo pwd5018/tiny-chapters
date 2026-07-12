@@ -18,6 +18,20 @@ export type MemoryExportPhotoManifestEntry = {
   localUriIncluded: boolean;
 };
 
+export type MemoryExportPrintReadiness = "ready" | "partial" | "text_only" | "needs_attention";
+
+export type MemoryExportPhotoAttentionEntry = {
+  memoryId: string;
+  memoryDate: string;
+  memoryPrompt: string;
+  photoId: string;
+  filename: string | null;
+  path: string;
+  syncStatus: AttachedPhotoSyncStatus;
+  syncStatusLabel: string;
+  statusNote: string;
+};
+
 export type MemoryExportEntry = {
   id: string;
   date: string;
@@ -27,6 +41,14 @@ export type MemoryExportEntry = {
   guidedContext: MemoryGuidanceContext | null;
   attachedPhotoCount: number;
   photoManifest: MemoryExportPhotoManifestEntry[];
+  hasPhotos: boolean;
+  hasDurableNasPhoto: boolean;
+  hasOnlyPendingOrMissingPhotos: boolean;
+  hasMissingPhotos: boolean;
+  hasPendingNasMatchPhotos: boolean;
+  printReadiness: MemoryExportPrintReadiness;
+  printReadinessLabel: string;
+  printReadinessNote: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -46,7 +68,9 @@ export type MemoryExportFilterSummary = {
 export type MemoryExportSummary = {
   memoryCount: number;
   taggedMemoryCount: number;
+  untaggedMemoryCount: number;
   memoryWithPhotosCount: number;
+  textOnlyMemoryCount: number;
   totalPhotoReferences: number;
   linkedNasPhotoCount: number;
   pendingNasMatchCount: number;
@@ -55,11 +79,37 @@ export type MemoryExportSummary = {
   preservedCopyPhotoCount: number;
 };
 
+export type MemoryExportDateRangeSummary = {
+  earliestMemoryDate: string | null;
+  latestMemoryDate: string | null;
+  distinctYearCount: number;
+};
+
+export type MemoryExportTagSummary = {
+  uniqueTags: string[];
+  tagFrequency: Record<string, number>;
+};
+
+export type MemoryExportPrintReadinessSummary = {
+  readyMemoryCount: number;
+  partialMemoryCount: number;
+  textOnlyMemoryCount: number;
+  needsAttentionMemoryCount: number;
+  memoriesWithDurablePhotosCount: number;
+  memoriesWithOnlyPendingOrMissingPhotosCount: number;
+  memoriesRequiringPhotoAttentionCount: number;
+};
+
 export type MemoryArchiveExport = {
-  schemaVersion: "2026-07-phase13-v1";
+  schemaVersion: "2026-07-phase13-v2";
   exportType: "tiny-chapters-archive";
   exportedAt: string;
   filters: MemoryExportFilterSummary;
   summary: MemoryExportSummary;
+  dateRangeSummary: MemoryExportDateRangeSummary;
+  tagSummary: MemoryExportTagSummary;
+  printReadinessSummary: MemoryExportPrintReadinessSummary;
+  pendingNasMatchRefs: MemoryExportPhotoAttentionEntry[];
+  missingPhotoRefs: MemoryExportPhotoAttentionEntry[];
   memories: MemoryExportEntry[];
 };

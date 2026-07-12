@@ -1,6 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,19 +10,143 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
+import { DatePickerField } from "@/components/DatePickerField";
 import { FadeInView } from "@/components/FadeInView";
 import { MemoryCard } from "@/components/MemoryCard";
 import { ScreenHero } from "@/components/ScreenHero";
+import { toLocalDateKey } from "@/lib/dates";
 import { useMemoryService } from "@/services/memoryService";
 import { theme } from "@/theme/theme";
-import type { Memory } from "@/types/memory";
+import type { Memory, AttachedPhotoSyncStatus } from "@/types/memory";
+
+const PHOTO_STATUS_FILTERS: Array<{
+  key: AttachedPhotoSyncStatus;
+  label: string;
+}> = [
+  { key: "linked_to_nas", label: "NAS linked" },
+  { key: "pending_nas_match", label: "Pending match" },
+  { key: "local_only", label: "Local only" },
+  { key: "missing", label: "Missing" },
+  { key: "preserved_copy", label: "Preserved copy" },
+];
+
+function parseTagFilters(value: string) {
+  return [...new Set(value.split(",").map((tag) => tag.trim().toLowerCase()).filter(Boolean))];
+}
+
+function buildFilterSummary(options: {
+  query: string;
+  tagFilters: string[];
+  fromEnabled: boolean;
+  fromDate: string;
+  toEnabled: boolean;
+  toDate: string;
+  photosOnly: boolean;
+  guidedOnly: boolean;
+  photoStatuses: AttachedPhotoSyncStatus[];
+}) {
+  const parts: string[] = [];
+
+  if (options.query.trim()) {
+    parts.push(`text "${options.query.trim()}"`);
+  }
+
+  if (options.tagFilters.length) {
+    parts.push(`tags ${options.tagFilters.map((tag) => `#${tag}`).join(", ")}`);
+  }
+
+  if (options.fromEnabled || options.toEnabled) {
+    const fromLabel = options.fromEnabled ? options.fromDate : "any";
+    const toLabel = options.toEnabled ? options.toDate : "any";
+    parts.push(`dates ${fromLabel} to ${toLabel}`);
+  }
+
+  if (options.photosOnly) {
+    parts.push("with photos");
+  }
+
+  if (options.guidedOnly) {
+    parts.push("guided only");
+  }
+
+  if (options.photoStatuses.length) {
+    const labels = PHOTO_STATUS_FILTERS.filter((option) =>
+      options.photoStatuses.includes(option.key)
+    ).map((option) => option.label);
+    parts.push(`photo states ${labels.join(", ")}`);
+  }
+
+  return parts.length ? parts.join(" | ") : "All memories";
+}
+
+function FilterPill({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.filterPill,
+        active ? styles.filterPillActive : null,
+        pressed ? styles.filterPillPressed : null,
+      ]}
+      onPress={onPress}
+    >
+      <Text style={[styles.filterPillText, active ? styles.filterPillTextActive : null]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
 export default function SearchScreen() {
-  const { getMemories, searchMemories } = useMemoryService();
+  const { searchMemories } = useMemoryService();
   const [query, setQuery] = useState("");
+  const [tagInput, setTagInput] = useState("");
   const [results, setResults] = useState<Memory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [fromEnabled, setFromEnabled] = useState(false);
+  const [toEnabled, setToEnabled] = useState(false);
+  const [fromDate, setFromDate] = useState(() => toLocalDateKey(new Date()));
+  const [toDate, setToDate] = useState(() => toLocalDateKey(new Date()));
+  const [photosOnly, setPhotosOnly] = useState(false);
+  const [guidedOnly, setGuidedOnly] = useState(false);
+  const [selectedPhotoStatuses, setSelectedPhotoStatuses] = useState<AttachedPhotoSyncStatus[]>(
+    []
+  );
+
+  const tagFilters = useMemo(() => parseTagFilters(tagInput), [tagInput]);
+  const filterSummary = useMemo(
+    () =>
+      buildFilterSummary({
+        query,
+        tagFilters,
+        fromEnabled,
+        fromDate,
+        toEnabled,
+        toDate,
+        photosOnly,
+        guidedOnly,
+        photoStatuses: selectedPhotoStatuses,
+      }),
+    [
+      fromDate,
+      fromEnabled,
+      guidedOnly,
+      photosOnly,
+      query,
+      selectedPhotoStatuses,
+      tagFilters,
+      toDate,
+      toEnabled,
+    ]
+  );
 
   const runSearch = useCallback(() => {
     let isActive = true;
@@ -31,9 +156,15 @@ export default function SearchScreen() {
       setErrorMessage("");
 
       try {
-        const nextResults = query.trim()
-          ? await searchMemories(query)
-          : await getMemories();
+        const nextResults = await searchMemories({
+          query,
+          from: fromEnabled ? fromDate : null,
+          to: toEnabled ? toDate : null,
+          tags: tagFilters,
+          hasPhotos: photosOnly || selectedPhotoStatuses.length ? true : undefined,
+          hasGuidedContext: guidedOnly ? true : undefined,
+          photoStatuses: selectedPhotoStatuses,
+        });
 
         if (isActive) {
           setResults(nextResults);
@@ -54,17 +185,40 @@ export default function SearchScreen() {
     return () => {
       isActive = false;
     };
-  }, [getMemories, query, searchMemories]);
+  }, [
+    fromDate,
+    fromEnabled,
+    guidedOnly,
+    photosOnly,
+    query,
+    searchMemories,
+    selectedPhotoStatuses,
+    tagFilters,
+    toDate,
+    toEnabled,
+  ]);
 
   useFocusEffect(runSearch);
+
+  const clearFilters = () => {
+    setQuery("");
+    setTagInput("");
+    setFromEnabled(false);
+    setToEnabled(false);
+    setFromDate(toLocalDateKey(new Date()));
+    setToDate(toLocalDateKey(new Date()));
+    setPhotosOnly(false);
+    setGuidedOnly(false);
+    setSelectedPhotoStatuses([]);
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <FadeInView>
         <ScreenHero
           eyebrow="Search"
-          title="Find a memory without digging too hard."
-          subtitle="Search saved memories by text, prompt, tags, or attached photo reference path."
+          title="Find the exact moment you meant."
+          subtitle="Search memory text, prompts, tags, guided answers, dates, and photo reference details with stronger filters."
           orbLargeColor="#E8D9C8"
           orbSmallColor="#DDBFA7"
         />
@@ -72,55 +226,147 @@ export default function SearchScreen() {
 
       <FadeInView delay={80}>
         <View style={styles.searchShell}>
-          <Text style={styles.searchLabel}>Search your archive</Text>
+          <View style={styles.searchHeaderRow}>
+            <Text style={styles.searchLabel}>Search your archive</Text>
+            <Pressable onPress={clearFilters} style={({ pressed }) => [pressed ? styles.linkPressed : null]}>
+              <Text style={styles.clearText}>Clear filters</Text>
+            </Pressable>
+          </View>
+
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search memories..."
+            placeholder="Search by memory text, prompt, tag, date, or photo details"
             placeholderTextColor={theme.colors.textSoft}
             style={styles.searchInput}
           />
+
+          <Text style={styles.helperText}>
+            Use commas for exact tag filters, then narrow by date or attachment state below.
+          </Text>
+
+          <TextInput
+            value={tagInput}
+            onChangeText={setTagInput}
+            placeholder="Tags: birthday, beach, grandparents"
+            placeholderTextColor={theme.colors.textSoft}
+            style={styles.searchInput}
+          />
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.groupLabel}>Date filters</Text>
+            <View style={styles.filterRow}>
+              <FilterPill
+                label={fromEnabled ? "From date on" : "From date"}
+                active={fromEnabled}
+                onPress={() => setFromEnabled((current) => !current)}
+              />
+              <FilterPill
+                label={toEnabled ? "To date on" : "To date"}
+                active={toEnabled}
+                onPress={() => setToEnabled((current) => !current)}
+              />
+            </View>
+            {fromEnabled ? (
+              <DatePickerField
+                value={fromDate}
+                onChange={setFromDate}
+                label="From"
+                actionLabel="Pick"
+                modalTitle="Choose earliest day"
+              />
+            ) : null}
+            {toEnabled ? (
+              <DatePickerField
+                value={toDate}
+                onChange={setToDate}
+                label="To"
+                actionLabel="Pick"
+                modalTitle="Choose latest day"
+              />
+            ) : null}
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.groupLabel}>Memory filters</Text>
+            <View style={styles.filterRow}>
+              <FilterPill
+                label="With photos"
+                active={photosOnly}
+                onPress={() => setPhotosOnly((current) => !current)}
+              />
+              <FilterPill
+                label="Guided only"
+                active={guidedOnly}
+                onPress={() => setGuidedOnly((current) => !current)}
+              />
+            </View>
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.groupLabel}>Photo durability</Text>
+            <View style={styles.filterWrapRow}>
+              {PHOTO_STATUS_FILTERS.map((option) => {
+                const active = selectedPhotoStatuses.includes(option.key);
+                return (
+                  <FilterPill
+                    key={option.key}
+                    label={option.label}
+                    active={active}
+                    onPress={() =>
+                      setSelectedPhotoStatuses((current) =>
+                        current.includes(option.key)
+                          ? current.filter((status) => status !== option.key)
+                          : [...current, option.key]
+                      )
+                    }
+                  />
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </FadeInView>
+
+      <FadeInView delay={120}>
+        <View style={styles.summaryCard}>
+          <Text style={styles.resultCount}>
+            {results.length} {results.length === 1 ? "memory" : "memories"}
+          </Text>
+          <Text style={styles.summaryText}>{filterSummary}</Text>
         </View>
       </FadeInView>
 
       {isLoading ? (
-        <FadeInView delay={130}>
+        <FadeInView delay={150}>
           <View style={styles.stateCard}>
             <ActivityIndicator color={theme.colors.accent} />
             <Text style={styles.stateText}>Searching memories...</Text>
           </View>
         </FadeInView>
       ) : errorMessage ? (
-        <FadeInView delay={130}>
+        <FadeInView delay={150}>
           <View style={styles.stateCard}>
             <Text style={styles.errorText}>{errorMessage}</Text>
           </View>
         </FadeInView>
       ) : (
-        <>
-          <FadeInView delay={130}>
-            <Text style={styles.resultCount}>
-              {results.length} {results.length === 1 ? "memory" : "memories"}
-            </Text>
-          </FadeInView>
-
-          <View style={styles.list}>
-            {results.map((memory, index) => (
-              <FadeInView key={memory.id} delay={150 + index * 35} distance={10}>
-                <MemoryCard memory={memory} />
-              </FadeInView>
-            ))}
-            {!results.length ? (
-              <FadeInView delay={150}>
-                <View style={styles.stateCard}>
-                  <Text style={styles.stateText}>
-                    No memories matched. Try a different word, tag, or date fragment.
-                  </Text>
-                </View>
-              </FadeInView>
-            ) : null}
-          </View>
-        </>
+        <View style={styles.list}>
+          {results.map((memory, index) => (
+            <FadeInView key={memory.id} delay={170 + index * 35} distance={10}>
+              <MemoryCard memory={memory} />
+            </FadeInView>
+          ))}
+          {!results.length ? (
+            <FadeInView delay={170}>
+              <View style={styles.stateCard}>
+                <Text style={styles.stateText}>
+                  No memories matched these filters. Try widening the date range or removing a tag.
+                </Text>
+              </View>
+            </FadeInView>
+          ) : null}
+        </View>
       )}
     </ScrollView>
   );
@@ -137,8 +383,14 @@ const styles = StyleSheet.create({
     borderColor: "#E5D2BE",
     borderRadius: theme.radii.lg,
     borderWidth: 1,
-    gap: theme.spacing.sm,
+    gap: theme.spacing.md,
     padding: theme.spacing.lg,
+  },
+  searchHeaderRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: theme.spacing.md,
   },
   searchLabel: {
     color: theme.colors.textMuted,
@@ -146,6 +398,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.4,
     textTransform: "uppercase",
+  },
+  clearText: {
+    color: theme.colors.accent,
+    fontSize: theme.typography.caption,
+    fontWeight: "700",
+  },
+  linkPressed: {
+    opacity: 0.72,
   },
   searchInput: {
     backgroundColor: "#FFF9F3",
@@ -158,11 +418,72 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
   },
+  helperText: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption,
+    lineHeight: 18,
+  },
+  filterGroup: {
+    gap: theme.spacing.sm,
+  },
+  groupLabel: {
+    color: theme.colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.35,
+    textTransform: "uppercase",
+  },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.sm,
+  },
+  filterWrapRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.sm,
+  },
+  filterPill: {
+    backgroundColor: "#FFF9F3",
+    borderColor: "#E7D8C8",
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 10,
+  },
+  filterPillActive: {
+    backgroundColor: "#D97841",
+    borderColor: "#D97841",
+  },
+  filterPillPressed: {
+    opacity: 0.9,
+  },
+  filterPillText: {
+    color: theme.colors.textPrimary,
+    fontSize: theme.typography.caption,
+    fontWeight: "700",
+  },
+  filterPillTextActive: {
+    color: "#FFF8F1",
+  },
+  summaryCard: {
+    backgroundColor: "#FFF8F1",
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    gap: theme.spacing.xs,
+    padding: theme.spacing.md,
+  },
   resultCount: {
     color: theme.colors.textMuted,
     fontSize: theme.typography.caption,
-    fontWeight: "600",
+    fontWeight: "700",
     letterSpacing: 0.2,
+  },
+  summaryText: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.body,
+    lineHeight: 22,
   },
   list: {
     gap: theme.spacing.md,

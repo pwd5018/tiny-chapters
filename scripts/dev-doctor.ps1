@@ -86,9 +86,9 @@ if ($metroStatus.IsMetro) {
 
 $devHostInfo = Get-PreferredDevHost
 if ($devHostInfo.Host) {
-  Add-Result -Label "Dev host" -Status "OK" -Details "$($devHostInfo.Host) via $($devHostInfo.Source)."
+  Add-Result -Label "Dev host" -Status "OK" -Details "$($devHostInfo.Host) via $($devHostInfo.Source) (mode=$($devHostInfo.Mode))."
 } else {
-  Add-Result -Label "Dev host" -Status "WARN" -Details "No explicit EXPO_DEV_SERVER_HOST is configured; launch scripts will auto-detect a host."
+  Add-Result -Label "Dev host" -Status "WARN" -Details "No usable dev host resolved (mode=$($devHostInfo.Mode)). Check EXPO_DEV_SERVER_MODE and EXPO_DEV_SERVER_HOST."
 }
 
 $envPath = Join-Path $workspaceRoot ".env"

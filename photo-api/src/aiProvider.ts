@@ -8,6 +8,12 @@ type FollowUpResult = {
   model: string;
 };
 
+type DailyPromptResult = {
+  prompt: string;
+  provider: AiProviderName;
+  model: string;
+};
+
 type PolishResult = {
   polishedText: string;
   provider: AiProviderName;
@@ -64,6 +70,17 @@ function parseFollowUpsFromText(rawText: string) {
     : [];
 
   return questions.map((question) => question.trim()).filter(Boolean).slice(0, 3);
+}
+
+function parseDailyPromptFromText(rawText: string) {
+  const parsed = JSON.parse(extractJsonBlock(rawText)) as Record<string, unknown>;
+  const prompt = typeof parsed.prompt === "string" ? parsed.prompt.trim() : "";
+
+  if (!prompt) {
+    throw new AiGatewayError("AI provider returned an empty daily prompt.", 502);
+  }
+
+  return prompt;
 }
 
 function parsePolishedTextFromText(rawText: string) {
@@ -204,6 +221,30 @@ function createFollowUpsPrompt(
     `Original answer: ${originalAnswer}`,
     `Current draft: ${composedText || "None"}`,
     `Already answered follow-ups: ${followUps.join(" | ") || "None"}`,
+  ].join("\n");
+}
+
+function createDailyPromptPrompt(
+  dateLabel: string,
+  memoryCountForDay: number,
+  priorPrompts: string[]
+) {
+  return [
+    "You are helping a private family memory app.",
+    "Return only JSON.",
+    'Schema: {"prompt":"..."}',
+    "Rules:",
+    "- Write exactly one warm opening question for capturing a small family memory.",
+    "- Keep it specific, gentle, and easy to answer.",
+    "- Keep it under 18 words.",
+    "- Avoid sounding generic, corporate, or sentimentalized.",
+    "- If memories already exist for this day, offer a fresh angle instead of repeating earlier prompts.",
+    "- Do not mention counts, streaks, apps, saving, archives, or journaling.",
+    "- End as a question.",
+    "- No preamble, no markdown, no explanation.",
+    `Date: ${dateLabel}`,
+    `Existing memories already saved for this date: ${memoryCountForDay}`,
+    `Earlier prompts already used for this date: ${priorPrompts.join(" | ") || "None"}`,
   ].join("\n");
 }
 
@@ -427,6 +468,22 @@ export async function generateAiFollowUps(
 
   return {
     questions,
+    provider: result.provider,
+    model: result.model,
+  };
+}
+
+export async function generateAiDailyPrompt(
+  dateLabel: string,
+  memoryCountForDay: number,
+  priorPrompts: string[]
+): Promise<DailyPromptResult> {
+  const prompt = createDailyPromptPrompt(dateLabel, memoryCountForDay, priorPrompts);
+  const result = await callProvider(prompt);
+  const dailyPrompt = parseDailyPromptFromText(result.text);
+
+  return {
+    prompt: dailyPrompt,
     provider: result.provider,
     model: result.model,
   };

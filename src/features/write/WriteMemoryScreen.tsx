@@ -132,7 +132,7 @@ export function WriteMemoryScreen() {
   const params = useLocalSearchParams<{ section?: string }>();
   const scrollViewRef = useRef<ScrollView | null>(null);
   const attachmentScope = "write";
-  const { createMemory, getDailyPrompt } = useMemoryService();
+  const { createMemory, getDailyPrompt, getMemoryCountForDate } = useMemoryService();
   const {
     memoryText,
     setMemoryText,
@@ -167,14 +167,43 @@ export function WriteMemoryScreen() {
   const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
   const [followUpDebugStatus, setFollowUpDebugStatus] = useState<AiDebugStatus | null>(null);
   const [polishDebugStatus, setPolishDebugStatus] = useState<AiDebugStatus | null>(null);
+  const [dailyPrompt, setDailyPrompt] = useState("What made today worth remembering?");
+  const [sameDayMemoryCount, setSameDayMemoryCount] = useState(0);
 
-  const today = useMemo(() => new Date(), []);
-  const dailyPrompt = useMemo(() => getDailyPrompt(today), [getDailyPrompt, today]);
   const followUps = guidedMemoryDraft?.followUps ?? [];
   const answeredFollowUps = followUps.filter((followUp) => followUp.status === "answered");
   const skippedFollowUps = followUps.filter((followUp) => followUp.status === "skipped");
   const hasGeneratedFollowUps = followUps.length > 0;
   const polishedSuggestion = guidedMemoryDraft?.polishedSuggestion?.trim() ?? "";
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadDailyPrompt() {
+      try {
+        const selectedDate = parseDateKeyAsLocalDate(selectedDateKey);
+        const [prompt, count] = await Promise.all([
+          getDailyPrompt(selectedDate),
+          getMemoryCountForDate(selectedDate),
+        ]);
+        if (isActive) {
+          setDailyPrompt(prompt);
+          setSameDayMemoryCount(count);
+        }
+      } catch {
+        if (isActive) {
+          setDailyPrompt("What made today worth remembering?");
+          setSameDayMemoryCount(0);
+        }
+      }
+    }
+
+    void loadDailyPrompt();
+
+    return () => {
+      isActive = false;
+    };
+  }, [getDailyPrompt, getMemoryCountForDate, selectedDateKey]);
 
   useEffect(() => {
     ensureGuidedMemoryDraft(dailyPrompt);
@@ -524,8 +553,15 @@ export function WriteMemoryScreen() {
               </View>
 
               <View style={styles.promptCard}>
-                <Text style={styles.promptLabel}>Today's question</Text>
+                <Text style={styles.promptLabel}>
+                  {sameDayMemoryCount > 0 ? "Another question for this day" : "Today's question"}
+                </Text>
                 <Text style={styles.promptText}>{dailyPrompt}</Text>
+                <Text style={styles.promptHelper}>
+                  {sameDayMemoryCount > 0
+                    ? `You already saved ${sameDayMemoryCount} ${sameDayMemoryCount === 1 ? "memory" : "memories"} for this date. This prompt is here to help you catch a different part of the day.`
+                    : "A tiny answer is enough. You can always come back and add more later."}
+                </Text>
               </View>
             </ScreenHero>
           </FadeInView>
@@ -542,7 +578,9 @@ export function WriteMemoryScreen() {
                 <Text style={styles.sectionHint}>
                   {hasGeneratedFollowUps
                     ? "Your original answer stays preserved below. This editor is still the memory you will save."
-                    : "Keep it small. Keep it real. A few honest lines are enough to begin."}
+                    : sameDayMemoryCount > 0
+                      ? "This can be a second angle, a later scene, or one tiny detail that deserves its own memory."
+                      : "Keep it small. Keep it real. A few honest lines are enough to begin."}
                 </Text>
               </View>
               <TextInput
@@ -969,6 +1007,12 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.title,
     fontWeight: "700",
     lineHeight: 28,
+  },
+  promptHelper: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption,
+    lineHeight: 18,
+    paddingTop: theme.spacing.xs,
   },
   editorCard: {
     backgroundColor: "#FFF9F4",

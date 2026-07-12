@@ -5,6 +5,8 @@ import { Platform } from "react-native";
 import {
   getAppEnvironmentLabel,
   getAppRuntimeLabel,
+  getMetroDevServerNetworkTargetLabel,
+  getMetroDevServerUrl,
   getNasPhotoApiNetworkTarget,
   getNasPhotoApiNetworkTargetLabel,
   nasPhotoApiBaseUrl,
@@ -56,6 +58,8 @@ export type DiagnosticsSnapshot = {
     version: string;
     runtimeEnvironment: string;
     photoSourceMode: string;
+    metroDevServerUrl: string;
+    metroDevServerNetworkTarget: string;
     nasPhotoApiBaseUrl: string;
     nasPhotoApiNetworkTarget: string;
     supabaseUrl: string;
@@ -261,12 +265,15 @@ export async function getDiagnosticsSnapshot(): Promise<DiagnosticsSnapshot> {
   const session = isSupabaseConfigured ? await getCurrentSession().catch(() => null) : null;
   const user = isSupabaseConfigured ? await getCurrentUser().catch(() => null) : null;
   const networkTarget = getNasPhotoApiNetworkTarget();
+  const metroDevServerUrl = getMetroDevServerUrl();
 
   return {
     app: {
       version: Constants.expoConfig?.version ?? "Unknown",
       runtimeEnvironment: String(Constants.executionEnvironment ?? "unknown"),
       photoSourceMode: getActivePhotoSourceMode(),
+      metroDevServerUrl: metroDevServerUrl || "Unavailable",
+      metroDevServerNetworkTarget: getMetroDevServerNetworkTargetLabel(),
       nasPhotoApiBaseUrl: maskUrl(nasPhotoApiBaseUrl),
       nasPhotoApiNetworkTarget: getNasPhotoApiNetworkTargetLabel(networkTarget),
       supabaseUrl: maskUrl(supabaseUrl),

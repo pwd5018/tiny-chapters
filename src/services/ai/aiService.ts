@@ -9,6 +9,12 @@ type FollowUpsGatewayResponse = {
   model: string;
 };
 
+type DailyPromptGatewayResponse = {
+  prompt: string;
+  provider: string;
+  model: string;
+};
+
 type PolishGatewayResponse = {
   polishedText: string;
   provider: string;
@@ -77,6 +83,42 @@ export async function generateGuidedFollowUpsWithAi(
     }
 
     return parseJsonResponse<FollowUpsGatewayResponse>(response);
+  } finally {
+    timeout.clear();
+  }
+}
+
+export async function generateDailyPromptWithAi(
+  dateLabel: string,
+  memoryCountForDay: number,
+  priorPrompts: string[]
+) {
+  if (!isAiGatewayConfigured()) {
+    throw new Error("AI gateway is not configured.");
+  }
+
+  const timeout = createTimeoutSignal();
+
+  try {
+    const response = await fetch(`${getGatewayBaseUrl()}/ai/daily-prompt`, {
+      method: "POST",
+      signal: timeout.signal,
+      headers: createAuthHeaders(),
+      body: JSON.stringify({
+        dateLabel,
+        memoryCountForDay,
+        priorPrompts,
+      }),
+    });
+
+    if (!response.ok) {
+      const payload: { error?: string } = await parseJsonResponse<{ error?: string }>(
+        response
+      ).catch(() => ({}));
+      throw new Error(payload.error || `AI daily prompt request failed with HTTP ${response.status}.`);
+    }
+
+    return parseJsonResponse<DailyPromptGatewayResponse>(response);
   } finally {
     timeout.clear();
   }

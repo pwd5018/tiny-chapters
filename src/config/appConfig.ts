@@ -3,12 +3,13 @@ import Constants from "expo-constants";
 export type AppEnvironment = "development" | "production";
 export type AppRuntime = "expo-go" | "development-build" | "standalone";
 export type PhotoSourceMode = "mock" | "nas" | "device";
-export type NasPhotoApiNetworkTarget =
+export type NetworkTarget =
   | "not-configured"
   | "localhost"
   | "lan"
   | "tailscale"
   | "custom";
+export type NasPhotoApiNetworkTarget = NetworkTarget;
 
 function readPublicEnvValue(value: string | undefined) {
   return value?.trim() ?? "";
@@ -35,6 +36,20 @@ function parseUrlSafely(value: string) {
   } catch {
     return null;
   }
+}
+
+function normalizeUrlLikeValue(value: string) {
+  const trimmedValue = readPublicEnvValue(value).replace(/\/+$/, "");
+
+  if (!trimmedValue) {
+    return "";
+  }
+
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmedValue)) {
+    return trimmedValue;
+  }
+
+  return `http://${trimmedValue}`;
 }
 
 function isLocalhostHostname(hostname: string) {
@@ -84,7 +99,7 @@ export function isNasPhotoApiConfigured() {
 export function getNasPhotoApiNetworkTarget(
   baseUrl: string = nasPhotoApiBaseUrl
 ): NasPhotoApiNetworkTarget {
-  const normalizedBaseUrl = readPublicEnvValue(baseUrl).replace(/\/+$/, "");
+  const normalizedBaseUrl = normalizeUrlLikeValue(baseUrl);
 
   if (!normalizedBaseUrl) {
     return "not-configured";
@@ -113,8 +128,8 @@ export function getNasPhotoApiNetworkTarget(
   return "custom";
 }
 
-export function getNasPhotoApiNetworkTargetLabel(
-  target: NasPhotoApiNetworkTarget = getNasPhotoApiNetworkTarget()
+export function getNetworkTargetLabel(
+  target: NetworkTarget
 ) {
   switch (target) {
     case "localhost":
@@ -128,6 +143,62 @@ export function getNasPhotoApiNetworkTargetLabel(
     default:
       return "Not configured";
   }
+}
+
+export function getNasPhotoApiNetworkTargetLabel(
+  target: NasPhotoApiNetworkTarget = getNasPhotoApiNetworkTarget()
+) {
+  return getNetworkTargetLabel(target);
+}
+
+export function getMetroDevServerHostUri() {
+  return readPublicEnvValue(
+    Constants.expoConfig?.hostUri ??
+      Constants.platform?.hostUri ??
+      undefined
+  );
+}
+
+export function getMetroDevServerUrl() {
+  return normalizeUrlLikeValue(getMetroDevServerHostUri());
+}
+
+export function getMetroDevServerNetworkTarget(
+  hostUri: string = getMetroDevServerHostUri()
+): NetworkTarget {
+  const normalizedHostUri = normalizeUrlLikeValue(hostUri);
+
+  if (!normalizedHostUri) {
+    return "not-configured";
+  }
+
+  const parsedUrl = parseUrlSafely(normalizedHostUri);
+
+  if (!parsedUrl) {
+    return "custom";
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase();
+
+  if (isLocalhostHostname(hostname)) {
+    return "localhost";
+  }
+
+  if (isPrivateLanIpv4(hostname) || hostname.endsWith(".local")) {
+    return "lan";
+  }
+
+  if (isTailscaleIpv4(hostname) || hostname.endsWith(".ts.net")) {
+    return "tailscale";
+  }
+
+  return "custom";
+}
+
+export function getMetroDevServerNetworkTargetLabel(
+  target: NetworkTarget = getMetroDevServerNetworkTarget()
+) {
+  return getNetworkTargetLabel(target);
 }
 
 export function getAppRuntime(): AppRuntime {

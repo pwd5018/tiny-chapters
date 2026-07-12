@@ -19,23 +19,39 @@ import type { ReminderSettings } from "@/types/reminder";
 
 export default function TodayScreen() {
   const router = useRouter();
-  const { getDailyPrompt, getOnThisDayMemories } = useMemoryService();
+  const { getDailyPrompt, getMemoryCountForDate, getOnThisDayMemories, getRandomResurfacedMemory } =
+    useMemoryService();
 
   const [dashboardCards, setDashboardCards] = useState<DashboardCardModel[]>([]);
   const [dashboardErrorMessage, setDashboardErrorMessage] = useState("");
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+  const [dailyPrompt, setDailyPrompt] = useState("What made today worth remembering?");
+  const [sameDayMemoryCount, setSameDayMemoryCount] = useState(0);
   const [dashboardOnThisDayMemories, setDashboardOnThisDayMemories] = useState<
     Awaited<ReturnType<typeof getOnThisDayMemories>>
   >([]);
+  const [resurfacedMemory, setResurfacedMemory] = useState<
+    Awaited<ReturnType<typeof getRandomResurfacedMemory>>
+  >(null);
   const [reminderSettings, setReminderSettings] = useState<ReminderSettings | null>(null);
   const [reminderPermission, setReminderPermission] = useState<
     "granted" | "denied" | "undetermined"
   >("undetermined");
 
   const today = useMemo(() => new Date(), []);
-  const dailyPrompt = useMemo(() => getDailyPrompt(today), [getDailyPrompt, today]);
 
-  useEffect(() => {
+  const loadResurfacedMemory = useCallback(
+    async (excludeIds?: string[]) => {
+      const nextMemory = await getRandomResurfacedMemory(today, {
+        minAgeDays: 30,
+        excludeIds,
+      });
+      setResurfacedMemory(nextMemory);
+    },
+    [getRandomResurfacedMemory, today]
+  );
+
+  const loadDashboardData = useCallback(() => {
     let isActive = true;
 
     async function loadDashboardData() {
@@ -43,13 +59,22 @@ export default function TodayScreen() {
       setDashboardErrorMessage("");
 
       try {
-        const onThisDayMemories = await getOnThisDayMemories(today, { limit: 3 });
+        const [nextDailyPrompt, nextSameDayMemoryCount, onThisDayMemories, nextResurfacedMemory] =
+          await Promise.all([
+          getDailyPrompt(today),
+          getMemoryCountForDate(today),
+          getOnThisDayMemories(today, { limit: 3 }),
+          getRandomResurfacedMemory(today, { minAgeDays: 30 }),
+        ]);
 
         if (!isActive) {
           return;
         }
 
+        setDailyPrompt(nextDailyPrompt);
+        setSameDayMemoryCount(nextSameDayMemoryCount);
         setDashboardOnThisDayMemories(onThisDayMemories);
+        setResurfacedMemory(nextResurfacedMemory);
       } catch (error) {
         if (isActive) {
           setDashboardErrorMessage(
@@ -68,7 +93,9 @@ export default function TodayScreen() {
     return () => {
       isActive = false;
     };
-  }, [getOnThisDayMemories, today]);
+  }, [getDailyPrompt, getMemoryCountForDate, getOnThisDayMemories, getRandomResurfacedMemory, today]);
+
+  useFocusEffect(loadDashboardData);
 
   useEffect(() => {
     let isActive = true;
@@ -82,7 +109,9 @@ export default function TodayScreen() {
         const cards = await getDashboardCardsForToday({
           date: today,
           dailyPrompt,
+          sameDayMemoryCount,
           onThisDayMemories: dashboardOnThisDayMemories,
+          resurfacedMemory,
         });
 
         if (isActive) {
@@ -109,6 +138,8 @@ export default function TodayScreen() {
     dailyPrompt,
     dashboardErrorMessage,
     dashboardOnThisDayMemories,
+    resurfacedMemory,
+    sameDayMemoryCount,
     today,
   ]);
 
@@ -158,6 +189,9 @@ export default function TodayScreen() {
         break;
       case "open_timeline":
         router.push("/(tabs)/timeline" as never);
+        break;
+      case "refresh_resurfaced_memory":
+        void loadResurfacedMemory(resurfacedMemory ? [resurfacedMemory.id] : []);
         break;
       default:
         break;

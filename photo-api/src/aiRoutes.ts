@@ -3,6 +3,7 @@ import express from "express";
 import { requireApiKey } from "./auth";
 import {
   AiGatewayError,
+  generateAiDailyPrompt,
   generateAiFollowUps,
   generateAiPolish,
   getAiGatewayStatus,
@@ -19,6 +20,37 @@ export function createAiRouter() {
 
   router.get("/ai/status", (_req, res) => {
     res.json(getAiGatewayStatus());
+  });
+
+  router.post("/ai/daily-prompt", async (req, res) => {
+    const dateLabel = getStringField(req.body?.dateLabel);
+    const memoryCountForDay =
+      typeof req.body?.memoryCountForDay === "number" && Number.isFinite(req.body.memoryCountForDay)
+        ? Math.max(0, Math.floor(req.body.memoryCountForDay))
+        : 0;
+    const priorPrompts = Array.isArray(req.body?.priorPrompts)
+      ? req.body.priorPrompts
+          .filter((value: unknown): value is string => typeof value === "string")
+          .map((value: string) => value.trim())
+          .filter(Boolean)
+      : [];
+
+    if (!dateLabel) {
+      res.status(400).json({ error: "dateLabel is required." });
+      return;
+    }
+
+    try {
+      const result = await generateAiDailyPrompt(dateLabel, memoryCountForDay, priorPrompts);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof AiGatewayError) {
+        res.status(error.statusCode).json({ error: error.message });
+        return;
+      }
+
+      res.status(500).json({ error: "AI daily prompt generation failed." });
+    }
   });
 
   router.post("/ai/follow-ups", async (req, res) => {

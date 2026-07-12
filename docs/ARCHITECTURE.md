@@ -43,11 +43,11 @@ Why this changed:
 - `src/features/write/`
   Focused writing-flow state and UI for the dedicated `write` route, including draft state shared with Today dashboard guidance and the Phase 10 guided-memory draft seam.
 - `src/services/ai/`
-  Client-side gateway wrapper for guided follow-up and polish requests. The mobile app calls the local backend gateway instead of storing provider secrets in the Expo bundle.
+  Client-side gateway wrapper for guided opening-question generation, guided follow-up generation, and polish requests. The mobile app calls the local backend gateway instead of storing provider secrets in the Expo bundle.
 - `src/services/`
   Service boundaries for auth, memories, photos, reminders, diagnostics, and permissions.
 - `src/services/export/`
-  Phase 13 export boundary for archive schema mapping, export filtering, JSON/Markdown formatting, and save-first device-file handling. On Android it should prefer a remembered user-chosen export folder over hidden app storage whenever platform support allows it.
+  Phase 13 export boundary for archive schema mapping, export filtering, JSON/Markdown formatting, print-readiness summaries, and save-first device-file handling. On Android it should prefer a remembered user-chosen export folder over hidden app storage whenever platform support allows it.
 - `src/types/`
   Domain models for memories, photos, and reminder settings.
 - `src/config/`
@@ -58,7 +58,7 @@ Why this changed:
 ## Service boundaries
 
 - `memoryService`
-  Repository-style boundary for CRUD, search, daily prompt selection, and `memory_photo_refs` persistence. Screens should not query Supabase directly for memory data.
+  Repository-style boundary for CRUD, search, daily prompt selection, resurfacing queries, `memory_photo_refs` persistence, and the first collection/grouping seam. Search now supports model-driven filtering over text, tags, date range, guided context, and photo durability state. Daily prompt selection is now the service seam that can use AI plus same-day prompt history without pushing that logic into screens. Phase 16 collection work should extend this service instead of teaching screens to assemble collection membership directly from Supabase rows. Screens should not query Supabase directly for memory data.
 - `photoService`
   Selects the active provider (`mock` or `nas`) and exposes shared operations such as date lookup, search, folders, connection tests, and match requests.
 - `nasPhotoProvider`
@@ -66,7 +66,7 @@ Why this changed:
 - `photoRelinkService`
   Owns pending NAS match queries, conservative metadata matching requests, relink retries, and durability summaries.
 - `aiService`
-  Calls the protected local AI gateway routes exposed by `photo-api/` for guided follow-up generation and optional memory cleanup or polish suggestions.
+  Calls the protected local AI gateway routes exposed by `photo-api/` for guided opening-question generation, guided follow-up generation, and optional memory cleanup or polish suggestions.
 - `reminderService`
   Owns device-local reminder settings, schedule/cancel logic, Android notification-channel setup, and reminder descriptions.
 - `permissionService`
@@ -81,11 +81,11 @@ Supplemental:
 - `WriteDraftProvider`
   Keeps the in-progress writing draft separate from the Today landing screen so dashboard guidance can stay aware of write-state without reintroducing a second writing path. It now also holds the first Phase 10 guided-memory draft shape: base question, original answer, future follow-up slots, and composed memory text.
 - `dashboardService`
-  Returns typed dashboard cards for the Today experience. The current lighter Today flow keeps this focused on prior-year On This Day memories and daily prompt guidance rather than draft, photo, or stats sections.
+  Returns typed dashboard cards for the Today experience. The current lighter Today flow keeps this focused on daily prompt guidance plus memory resurfacing such as prior-year On This Day and a random older-memory card rather than draft, photo, or stats sections.
 - `exportService`
-  Phase 13 foundation for building a canonical archive export from existing memories. It should preserve enough photo identity for future book-building workflows without claiming to own original image binaries.
+  Phase 13 foundation for building a canonical archive export from existing memories. It preserves enough photo identity plus print-readiness metadata for future book-building workflows without claiming to own original image binaries.
 - `DeveloperEnvironmentBanner`
-  Developer-only runtime banner that exposes the current environment, runtime, photo source, Photo API URL, Supabase URL, and platform without showing secrets.
+  Developer-only runtime banner that exposes the current environment, runtime, photo source, current Metro dev-server URL/path, Photo API URL/path, Supabase URL, and platform without showing secrets.
 
 Phase 11 result:
 
@@ -99,9 +99,11 @@ Phase 11 result:
 - `app/(tabs)/index.tsx` now acts as a lighter landing screen: it asks the dashboard feature for cards, renders loading/empty/error states through reusable dashboard components, and sends users into the dedicated `write` route for composition.
 - Phase 9.2 upgrades the `on_this_day` card from a placeholder into a real resurfacing card backed by `memoryService.getOnThisDayMemories(...)`.
 - Phase 9.3 adds richer `daily_prompt` behavior and real On This Day resurfacing while keeping card composition inside `src/features/dashboard/`.
+- Phase 15 extends that same pattern further: the daily prompt is now a service-backed seam that can reuse an unused question for the date, vary the question after same-day saves, and pair with a random older-memory resurfacing card without pushing archive browsing back into Today.
 - The lighter Today route now loads memory-backed dashboard data once and stays intentionally sparse, leaving writing and photo picking inside the dedicated `write` route.
 - The redesigned Today header is intentionally slim: app name plus date, then the dashboard flow. It should stay calmer than Moments and should not become a second full composition screen again.
 - The dedicated `write` route now owns the fuller memory-composition experience, while the Moments tab owns browsing/stats instead of asking Today to do both jobs at once.
+- Phase 16 should follow the same IA rule: larger archive groupings belong in Moments-first collection browsing rather than adding another dense archive section to Today.
 - Early Phase 10 groundwork should stay inside the dedicated `write` route until the guided-question UX is proven. Today may launch the flow, but should not become the place where multi-step guided writing happens.
 - Phase 11 followed the same IA guardrail: photo-source improvements launch from Write, but Today does not become the place where device-library management or multi-step photo browsing lives.
 
@@ -151,11 +153,17 @@ Tables:
 - `memory_photo_refs`
   `memory_id`, `user_id`, `photo_id`, `source`, `path`, `content_hash`, `attached_at`, `filename`, `taken_at`, `file_size`, `width`, `height`, `local_uri`, `sync_status`.
 
+Phase 16 direction:
+
+- Collection data should become a first-class seam rather than hiding larger story structure inside free-form tags alone.
+- A memory should be able to belong to multiple collections such as both a school year and a family vacation.
+- The expected shape is a collection table plus a membership/join table, owned by the same user-scoped service and RLS pattern as the rest of the archive data.
+
 Tags strategy:
 
 - Tags are currently stored inline as `text[]` on `memories`.
 - There is no separate `tags` table yet.
-- Search is currently app-side string matching across memory fields and attachment metadata.
+- Search is currently model-driven but still app-side over loaded memories. It supports free text plus structured filters for tags, date range, guided context presence, photo presence, and attachment durability metadata.
 
 RLS expectations:
 
@@ -307,11 +315,15 @@ Platform note:
   - guided-writing context when present
   - photo manifest entries with stable identity fields such as `photoId`, `path`, `filename`, `contentHash`, `takenAt`, `source`, and `syncStatus`
   - archive metadata such as schema version, export timestamp, and filter summary
+  - export-level date-span, tag, and print-readiness summaries
+  - per-memory print-readiness labels and notes
+  - explicit pending NAS match and missing-photo review lists for later manual or local-tool triage
 - Export should not include:
   - original photo binaries
   - secrets, auth state, or environment values
   - claims that every exported photo is presently reachable on-device
 - Later book-builder work should be able to consume the canonical export and resolve actual originals from NAS or local storage in a separate local workflow.
+- The mobile app still stops at manifest generation and file save. Actual photo gathering, layouting, or print submission remains out of scope for this repo phase.
 
 ## Phase-history discrepancy note
 

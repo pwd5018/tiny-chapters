@@ -5,8 +5,8 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "dev": "expo start --dev-client --port 8081",
-    "start:clear": "expo start --dev-client --port 8081 -c",
+    "dev": "powershell -ExecutionPolicy Bypass -File ./scripts/start-metro.ps1",
+    "start:clear": "powershell -ExecutionPolicy Bypass -File ./scripts/start-metro.ps1 -Clear",
     "android": "powershell -ExecutionPolicy Bypass -File ./scripts/run-android.ps1",
     "android:device": "powershell -ExecutionPolicy Bypass -File ./scripts/run-android.ps1 -Device",
     "rebuild": "powershell -ExecutionPolicy Bypass -File ./scripts/rebuild-android.ps1",

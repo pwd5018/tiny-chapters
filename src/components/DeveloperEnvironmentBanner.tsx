@@ -5,6 +5,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import {
   getAppEnvironmentLabel,
   getAppRuntimeLabel,
+  getMetroDevServerNetworkTargetLabel,
+  getMetroDevServerUrl,
   getNasPhotoApiNetworkTargetLabel,
   nasPhotoApiBaseUrl,
   supabaseUrl,
@@ -44,6 +46,8 @@ export function DeveloperEnvironmentBanner() {
         Runtime: {getAppRuntimeLabel()} on {Platform.OS}
       </Text>
       <Text style={styles.detail}>Photo source: {getActivePhotoSourceMode()}</Text>
+      <Text style={styles.detail}>Metro: {getMetroDevServerUrl() || "Unavailable"}</Text>
+      <Text style={styles.detail}>Metro path: {getMetroDevServerNetworkTargetLabel()}</Text>
       <Text style={styles.detail}>Photo API: {nasPhotoApiBaseUrl || "Not configured"}</Text>
       <Text style={styles.detail}>Photo API path: {getNasPhotoApiNetworkTargetLabel()}</Text>
       <Text style={styles.detail}>Supabase: {supabaseUrl || "Not configured"}</Text>

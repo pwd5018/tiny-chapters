@@ -175,6 +175,19 @@ function Get-ConfigValue {
   return $null
 }
 
+function Get-DevServerMode {
+  $configuredMode = Get-ConfigValue -Key "EXPO_DEV_SERVER_MODE"
+  if ([string]::IsNullOrWhiteSpace($configuredMode)) {
+    return "auto"
+  }
+
+  switch ($configuredMode.Trim().ToLowerInvariant()) {
+    "local" { return "local" }
+    "tailscale" { return "tailscale" }
+    default { return "auto" }
+  }
+}
+
 function Get-PortListener {
   param(
     [int]$Port = $script:MetroPort
@@ -268,8 +281,31 @@ function Get-AuthorizedAdbDevices {
 }
 
 function Get-PreferredDevHost {
+  $configuredMode = Get-DevServerMode
   $configuredHost = Get-ConfigValue -Key "EXPO_DEV_SERVER_HOST"
-  if ($configuredHost) {
+  if ($configuredMode -eq "tailscale") {
+    if (-not [string]::IsNullOrWhiteSpace($configuredHost)) {
+      return [pscustomobject]@{
+        Host = $configuredHost
+        Source = if (-not [string]::IsNullOrWhiteSpace($env:EXPO_DEV_SERVER_HOST)) {
+          "EXPO_DEV_SERVER_HOST env"
+        } else {
+          ".env EXPO_DEV_SERVER_HOST"
+        }
+        Mode = $configuredMode
+        Candidates = @($configuredHost)
+      }
+    }
+
+    return [pscustomobject]@{
+      Host = $null
+      Source = "missing EXPO_DEV_SERVER_HOST"
+      Mode = $configuredMode
+      Candidates = @()
+    }
+  }
+
+  if ($configuredMode -eq "auto" -and $configuredHost) {
     return [pscustomobject]@{
       Host = $configuredHost
       Source = if (-not [string]::IsNullOrWhiteSpace($env:EXPO_DEV_SERVER_HOST)) {
@@ -277,6 +313,7 @@ function Get-PreferredDevHost {
       } else {
         ".env EXPO_DEV_SERVER_HOST"
       }
+      Mode = $configuredMode
       Candidates = @($configuredHost)
     }
   }
@@ -321,7 +358,8 @@ function Get-PreferredDevHost {
   if ($ordered.Count -gt 0) {
     return [pscustomobject]@{
       Host = $ordered[0].IPAddress
-      Source = "auto-detected"
+      Source = if ($configuredMode -eq "local") { "local auto-detected" } else { "auto-detected" }
+      Mode = $configuredMode
       Candidates = @($ordered | ForEach-Object { "$($_.IPAddress) ($($_.InterfaceAlias))" })
     }
   }
@@ -329,6 +367,7 @@ function Get-PreferredDevHost {
   return [pscustomobject]@{
     Host = $null
     Source = "not-found"
+    Mode = $configuredMode
     Candidates = @()
   }
 }

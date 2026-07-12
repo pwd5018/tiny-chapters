@@ -5,6 +5,12 @@ export type AttachedPhotoSyncStatus =
   | "linked_to_nas"
   | "missing"
   | "preserved_copy";
+export type MemoryCollectionKind =
+  | "vacation"
+  | "school_year"
+  | "holiday"
+  | "kid_chapter"
+  | "custom";
 
 export type GuidedMemoryFollowUpStatus = "pending" | "answered" | "skipped";
 
@@ -46,6 +52,21 @@ export type AttachedPhotoRef = {
   syncStatus: AttachedPhotoSyncStatus;
 };
 
+export type MemoryCollectionSummary = {
+  id: string;
+  title: string;
+  kind: MemoryCollectionKind;
+};
+
+export type MemoryCollection = MemoryCollectionSummary & {
+  description: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  memoryCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Memory = {
   id: string;
   date: string;
@@ -53,9 +74,18 @@ export type Memory = {
   text: string;
   tags: string[];
   guidedContext: MemoryGuidanceContext | null;
+  collections: MemoryCollectionSummary[];
   attachedPhotos: AttachedPhotoRef[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type CreateMemoryCollectionInput = {
+  title: string;
+  kind: MemoryCollectionKind;
+  description?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
 };
 
 export type CreateMemoryInput = {
@@ -64,5 +94,6 @@ export type CreateMemoryInput = {
   text: string;
   tags: string[];
   guidedContext?: MemoryGuidanceContext | null;
+  collectionIds?: string[];
   attachedPhotos: AttachedPhotoRef[];
 };

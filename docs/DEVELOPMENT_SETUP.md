@@ -27,6 +27,7 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 EXPO_PUBLIC_PHOTO_SOURCE_MODE=mock
 EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL=http://192.168.1.50:5055
 EXPO_PUBLIC_NAS_PHOTO_API_KEY=change-me
+EXPO_DEV_SERVER_MODE=local
 EXPO_DEV_SERVER_HOST=
 ```
 
@@ -39,7 +40,8 @@ Important:
 - `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL` is safe to expose if you are comfortable sharing the host address.
 - `EXPO_PUBLIC_NAS_PHOTO_API_KEY` is not a real secret once shipped inside a mobile build. Keep it out of git, use it only for personal/dev use, and plan to replace this auth model before any wider distribution.
 - Provider keys for OpenAI, Groq, or Gemini should never go in the Expo app `.env`. Keep them only in `photo-api/.env` because the mobile bundle treats `EXPO_PUBLIC_*` values as public.
-- `EXPO_DEV_SERVER_HOST` is a local dev-script override for Metro host selection. It is not bundled into the app and is the right place to pin a Tailscale IP for the dev client.
+- `EXPO_DEV_SERVER_MODE` controls how `npm run dev`, `npm run start:clear`, `npm run android:launch`, and `npm run rebuild` pick the Metro host. Use `local` for home-network LAN work, `tailscale` for remote dev-client work, or leave it unset for the older auto behavior.
+- `EXPO_DEV_SERVER_HOST` is the specific host override used when the mode needs a fixed host, especially Tailscale. It is not bundled into the app.
 
 ## Environment strategy
 
@@ -60,6 +62,14 @@ Examples:
   `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL=http://100.x.x.x:5055`
 - Future cloud
   `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL=https://photo-api.example.com`
+
+Metro host examples:
+
+- local home-network development
+  `EXPO_DEV_SERVER_MODE=local`
+- away-from-home development through Tailscale
+  `EXPO_DEV_SERVER_MODE=tailscale`
+  `EXPO_DEV_SERVER_HOST=100.101.102.103`
 
 Photo source mode is still controlled by:
 
@@ -189,10 +199,11 @@ npm run android:launch
 ```
 
 ```text
+EXPO_DEV_SERVER_MODE=tailscale
 EXPO_DEV_SERVER_HOST=100.101.102.103
 ```
 
-With that `.env` value in place, both `npm run android:launch` and `npm run rebuild` will reuse the same host automatically.
+With that `.env` value in place, `npm run dev`, `npm run start:clear`, `npm run android:launch`, and `npm run rebuild` will all reuse the same host automatically.
 
 Use USB debugging first if the phone and computer are not reliably reachable over Wi-Fi. The app still needs to reach the host machine on port `8081`.
 
@@ -227,7 +238,9 @@ From the app:
 
 - enable Developer Mode in Settings
 - look at the startup environment banner
+- confirm the Metro path says `LAN` or `Tailscale` for the currently connected dev server
 - open `Developer Mode -> Diagnostics`
+- confirm the Metro network path reflects the current dev-server host
 - confirm the Photo API network path says `LAN` or `Tailscale` instead of `Localhost only`
 - run `Test NAS /health`
 - run `Test NAS /status`
@@ -236,8 +249,8 @@ Important:
 
 - Tailscale remote access for Tiny Chapters is primarily about the Photo API on port `5055`.
 - Metro on port `8081` is only needed when you are actively loading a new JS bundle or using hot reload from the development machine.
-- Leaving `EXPO_DEV_SERVER_HOST` unset is the normal home-network default. The launch script will auto-pick a likely LAN host for Metro.
-- For away-from-home dev-client use, set `EXPO_DEV_SERVER_HOST` to the host machine's Tailscale IP in `.env` and keep using the normal `npm run dev` plus `npm run android:launch` flow.
+- `EXPO_DEV_SERVER_MODE=local` is the normal home-network default.
+- For away-from-home dev-client use, set `EXPO_DEV_SERVER_MODE=tailscale` and point `EXPO_DEV_SERVER_HOST` at the host machine's Tailscale IP in `.env`.
 
 If you want real AI-guided memory follow-ups or cleanup:
 

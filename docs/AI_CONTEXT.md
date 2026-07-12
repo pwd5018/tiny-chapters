@@ -6,20 +6,25 @@ Read this file, [ARCHITECTURE.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\
 
 Tiny Chapters is a private memory capsule and journal app for capturing small family moments. The mobile app stores auth, memory text, tags, and photo reference metadata in Supabase. Original photos stay outside Supabase. In the current personal workflow, a separate local Photo API indexes a Windows-accessible NAS share and serves metadata, thumbnails, and view URLs to the app.
 
-## Current status after Phase 12
+## Current status after Phase 15
 
 Implemented in the repo now:
 
 - Expo Router mobile app with a lighter Today dashboard, dedicated `write` composition route, Moments browsing/stats tab, Search, and Settings flows
 - Today screen dashboard foundation with modular card types, async card service plumbing, reusable dashboard rendering, real On This Day resurfacing, and richer daily prompt guidance
+- Today can now also surface one random older memory from outside the current day on load, with an in-place button to reveal another one without leaving the lighter dashboard flow
+- The opening question is now service-backed instead of a fixed rotation, can use the local AI gateway when configured, and reuses an unused prompt for a date until a save actually consumes it
+- Same-day capture now feels more intentional: after a save on the same date, Tiny Chapters can offer a fresh opening angle and explain that a second or third memory can be a different scene or detail from the day
 - Redesigned UI baseline with a slimmed Today header, calmer dashboard hierarchy, shared hero treatment across main screens, and warmer editorial card/form styling
 - Guided-memory write-state that preserves the base daily question, original answer, follow-up slots, and composed memory text as separate draft concepts inside the dedicated Write flow
 - AI-capable write flow inside the dedicated Write route, using the local gateway in `photo-api/` when configured and falling back gracefully to deterministic local helpers when it is not
 - Optional cleanup seam inside the dedicated Write route that keeps a separate polished short-form suggestion instead of overwriting the rough draft by default
 - Saved memories can now persist guided context in Supabase through `memories.guided_context`, while still keeping the main saved memory in `memories.text`
-- Early Phase 13 export foundation with a canonical archive schema, photo-manifest mapping, export summary counts, and service-layer filtering helpers
-- First Settings-based archive export actions for JSON and Markdown, now oriented around a remembered Android export folder so files land somewhere the user can actually browse
+- Completed Phase 13 export foundation with a canonical archive schema, photo-manifest mapping, export summary counts, and service-layer filtering helpers
+- Settings-based archive export actions for JSON and Markdown, oriented around a remembered Android export folder so files land somewhere the user can actually browse
 - First-pass targeted export controls in Settings, including date-range filters, comma-separated tag filters, and a preview summary before export
+- Book-builder-ready export metadata, including date-span and tag summaries, per-memory print-readiness signals, and explicit pending/missing photo review lists for later local companion tooling
+- Completed Phase 14 search upgrade with stronger archive filtering across text, exact tags, date range, guided-memory presence, photo presence, and photo durability states
 - Supabase Auth plus Supabase-backed `memories` and `memory_photo_refs`
 - Service-layer boundaries for auth, memories, photos, reminders, diagnostics, and permissions
 - Mock, NAS, and device-aware photo source handling behind `photoService`
@@ -35,6 +40,7 @@ Implemented in the repo now:
 - Fixed-port Metro workflow on `8081` plus PowerShell `doctor`, `rebuild`, and `android:launch` tooling
 - `EXPO_DEV_SERVER_HOST` can now be pinned in the repo-root `.env` for persistent Metro host selection, including Tailscale dev-client launches
 - Developer-only startup environment banner and startup diagnostics
+- Developer Mode now shows the active Metro dev-server URL and classifies it as `LAN`, `Tailscale`, `Localhost only`, or `Custom`, alongside the existing Photo API path diagnostics
 - Centralized permission helpers for notifications, camera, and photo-library access
 - iOS readiness diagnostics for bundle id, permission status, Photo API URL, and NAS warning checks
 - Tailscale-aware Photo API diagnostics and centralized LAN vs Tailscale URL switching through `EXPO_PUBLIC_NAS_PHOTO_API_BASE_URL`
@@ -47,21 +53,29 @@ Not implemented yet:
 - Dashboard photo thumbnails inside On This Day cards
 - NAS or device-photo dashboard suggestions
 - Advanced stats expansions beyond the current totals, monthly count, and streak summary that live on the Moments tab
-- A local companion workflow that resolves actual photo files for a printed book
+- A local companion workflow that resolves actual photo files for a printed book from the richer Phase 13 export manifest
+- Explicit person and location entities for structured search
+- Semantic search
 - Product-mode cloud photo preservation
 
 Current next-phase plan:
 
-- Phase 13 is Export.
-- Phase 13 should now be treated as the archive-export foundation for a later printed-book workflow, not just a one-off data dump.
-- The first implementation should add a personal, readable export path starting with structured JSON plus human-readable Markdown.
-- Export should preserve enough photo identity for a later local book-builder workflow to resolve the real originals from NAS or local storage.
-- Keep the current storage model intact: export should reflect memories and reference metadata clearly without turning this phase into cloud photo storage, broad sync, or in-app print publishing.
-- Recommended Phase 13 slices:
-  1. Slice 1: define the canonical export schema plus service-layer mapping/filtering helpers for memories and attached-photo manifests
-  2. Slice 2: generate JSON and Markdown outputs from that canonical export model
-  3. Slice 3: add Settings entrypoints and first-pass targeted export controls such as date range and lightweight tag filtering
-- Later printed-book work should likely live in a separate local companion workflow that reads the Tiny Chapters export, resolves actual photo files, and assembles print-ready output.
+- Phase 13 is complete.
+- Phase 14 is complete.
+- Phase 15 is complete.
+- Export is now the archive-ready handoff format for a later printed-book workflow, not just a one-off data dump.
+- The current export preserves enough photo identity and readiness metadata for a later local companion workflow to resolve real originals from NAS or local storage and triage what still needs attention.
+- The next app-roadmap phase is Phase 16: Memory Collections.
+- Phase 16 should add meaningful larger groupings for memories such as vacations, school years, holidays, and kid-specific chapters without undoing the calmer Today plus dedicated Write flow that now exists.
+- Phase 16 should treat collections as durable archive structure, not just a thin tag preset layer.
+- The first planned slices are:
+  1. collection data foundation
+  2. collection repository/service seam
+  3. Moments-first collection browsing
+  4. lightweight collection assignment flows
+  5. search/export integration
+  6. manual-first starter templates
+- The next print-focused step should live in a separate local companion workflow that reads the Tiny Chapters export, resolves actual photo files, and assembles print-ready output.
 
 ## Tech stack
 
@@ -137,6 +151,8 @@ Photo API:
 - Keep the Today dashboard modular. Add new Today experiences as typed dashboard cards and service-backed card generation rather than hardcoding more one-off sections into `app/(tabs)/index.tsx`.
 - Keep memory resurfacing logic inside `memoryService` and card composition inside `src/features/dashboard/` rather than reintroducing direct data shaping in routes.
 - Keep the dedicated `write` route focused on composition. Resist pulling the full editor and photo browser back into Today unless the overall IA changes intentionally.
+- Keep collection browsing anchored in Moments and collection/service seams rather than reintroducing archive-density on Today.
+- Keep collection assignment lightweight in Write. Prefer optional save-time assignment plus memory-detail editing over turning the write flow into a metadata checklist.
 - Keep guided-memory question state in the dedicated Write flow. Do not spread multi-step guided writing across Today, Moments, or Settings.
 - Treat the current redesign as the visual baseline for future milestone work. Extend the calmer Today, stronger Moments ownership, and single writing path instead of reintroducing duplicate actions or crowded home-screen sections.
 - Never expose secrets in UI, logs, screenshots, sample env files, or docs.

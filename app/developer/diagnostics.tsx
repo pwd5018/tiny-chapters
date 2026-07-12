@@ -213,6 +213,11 @@ export default function DiagnosticsScreen() {
           <KeyValue label="App version" value={snapshot?.app.version ?? "Unknown"} />
           <KeyValue label="Runtime environment" value={snapshot?.app.runtimeEnvironment ?? "Unknown"} />
           <KeyValue label="Photo source mode" value={snapshot?.app.photoSourceMode ?? "Unknown"} />
+          <KeyValue label="Metro dev server" value={snapshot?.app.metroDevServerUrl ?? "Unavailable"} />
+          <KeyValue
+            label="Metro network path"
+            value={snapshot?.app.metroDevServerNetworkTarget ?? "Not configured"}
+          />
           <KeyValue label="NAS Photo API" value={snapshot?.app.nasPhotoApiBaseUrl ?? "Not configured"} />
           <KeyValue
             label="Photo API network path"

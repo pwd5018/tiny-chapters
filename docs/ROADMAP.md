@@ -75,36 +75,70 @@ Future Codex sessions should check this file first when planning work. Mark phas
   1. Real iPhone Tailscale verification.
   2. Longer-session reconnect and failure-behavior validation.
 - Phase 13: Export
-  Build the archive-export foundation for backup, reuse, and a later printed-book workflow without changing the current storage model.
-  Planned slices:
+  Completed.
+  Tiny Chapters now supports save-first archive export through Settings with shared JSON and Markdown outputs, targeted date/tag filtering, a user-chosen Android export folder, and a book-builder-ready manifest that calls out print readiness and photo attention areas without bundling original binaries.
+  Completed slices:
   1. Phase 13.1: Export foundation
      Define the canonical archive export schema plus service-layer filtering and mapping helpers. Preserve stable photo-manifest identity such as `photoId`, `path`, `filename`, `contentHash`, `takenAt`, `source`, and `syncStatus` so later workflows can reconnect to originals.
   2. Phase 13.2: JSON and Markdown outputs
      Generate machine-friendly JSON plus human-readable Markdown from the same canonical export model. Keep this honest about photo durability and reference-only storage.
   3. Phase 13.3: Targeted export controls
-     Add first-pass export targeting such as date range and lightweight tag filtering through Settings, without spreading export UI back into Today.
-     Status: in progress. Settings now has first-pass date range, comma-separated tag filters, and a preview summary, but the phase still needs real runtime validation and may expand the targeting model later.
+     Add first-pass export targeting through Settings with date range, lightweight tag filtering, preview summaries, and save-first export handling instead of hiding files in app-private storage.
   4. Phase 13.4: Book-builder-ready manifest polish
-     Refine the export metadata for a later local companion workflow that can gather the real photo files and assemble printable output.
+     Extend the canonical export with date-range, tag, and print-readiness summaries plus explicit pending/missing photo review lists so a later local companion workflow can identify safe book candidates and unresolved photo work quickly.
   Not in Phase 13:
   - cloud photo sync
   - original photo bundling inside the mobile app
   - full PDF/book generation or print-service integration
 - Phase 14: Search Upgrade
-  Advanced filters, person/tag/date/location, and later semantic search.
-- Phase 15: Memory Collections
-  Vacations, school years, holidays, and kid-specific chapters.
-- Phase 16: AI Cleanup and Enrichment
+  Completed.
+  Tiny Chapters Search now supports richer archive filtering across free-text search, exact tag filters, date range, guided-memory presence, photo presence, and attached-photo durability states while keeping the route focused on the existing memory model instead of inventing unsupported structure.
+  Completed slices:
+  1. Phase 14.1: Structured search service filters
+     Extend the memory-service search seam beyond a single query string so routes can filter by current repo-backed metadata such as date range, tags, guided context, and attached photo sync states.
+  2. Phase 14.2: Search screen filter UX
+     Upgrade the Search tab with a clearer filter surface and active-summary behavior without turning it into a dense admin screen.
+  Follow-on search work still outside Phase 14:
+  - explicit person entities
+  - explicit location entities
+  - semantic search
+- Phase 15: AI Prompting and Resurfacing
+  Completed.
+  Tiny Chapters now supports a service-backed opening-question seam that can use the local AI gateway when configured, reuses an unused prompt instead of regenerating it on every reload, varies the opening angle after same-day saves, and adds a lightweight Today resurfacing card that can show another older memory in place without turning Moments into a second home screen.
+  Completed slices:
+  1. Phase 15.1: Intelligent opening-question seam
+     Replace the fixed daily-question rotation with a service-backed prompt seam that can use AI when configured, fall back locally when it is not, and stay aware of same-day saved prompts so later memories on the same date get a fresh starting angle.
+  2. Phase 15.2: Write-flow integration and prompt persistence
+     Keep the dedicated Write flow as the owner of the fuller guided-writing experience while preserving the actual opening prompt used for each saved memory and making repeated same-day capture feel intentional instead of repetitive.
+  3. Phase 15.3: Random memory resurfacing on Today
+     Add a calm Today dashboard card that shows one older memory on load and can fetch another random resurfaced memory from a configurable timeframe without crowding Moments or turning Today into a dense archive browser.
+- Phase 16: Memory Collections
+  Planned.
+  Tiny Chapters should gain meaningful larger groupings for memories such as vacations, school years, holidays, and kid-specific chapters without undoing the calmer Today plus dedicated Write flow that now exists. This phase should treat collections as durable archive structure rather than just leaning harder on free-form tags.
+  Planned slices:
+  1. Phase 16.1: Collection data foundation
+     Add first-class collection storage and memory-to-collection membership so one memory can belong to multiple larger chapters. Preserve the existing memory model and keep this groundwork service-driven rather than screen-driven.
+  2. Phase 16.2: Collection repository seam
+     Extend `memoryService` with collection CRUD, membership assignment, and grouped queries so screens can load archive structure without shaping Supabase data directly.
+  3. Phase 16.3: Moments-first collection browsing
+     Upgrade the Moments experience to surface collections as a richer archive entry point, then allow drill-in to a collection detail view instead of asking Today to absorb more archive browsing.
+  4. Phase 16.4: Lightweight assignment flows
+     Let users place memories into collections without turning Write into a metadata form. Prefer optional assignment at save time plus stronger edit/detail assignment tools over a heavy compose flow.
+  5. Phase 16.5: Search and export integration
+     Make collections filterable in archive search and include collection membership in exports so later local/book workflows can preserve the larger story structure.
+  6. Phase 16.6: Manual-first starter templates
+     Start with manual collections plus helpful templates or presets such as Vacation, School Year, Holiday, and Kid Chapter. AI suggestion or auto-classification work belongs later, not in the first collection pass.
+- Phase 17: AI Cleanup and Enrichment
   Clean up text, generate titles, suggest tags, and never overwrite originals without explicit user confirmation.
-- Phase 17: Year in Review
+- Phase 18: Year in Review
   Recap memories, top people/themes/places, and share/export flows.
-- Phase 18: Product Mode and Cloud Options
+- Phase 19: Product Mode and Cloud Options
   Support non-NAS users, optional cloud photo preservation, and explicit storage/privacy model decisions.
-- Phase 19: Optional Home Agent
+- Phase 20: Optional Home Agent
   Power-user NAS/private archive support with possible cloud relay later.
-- Phase 20: Beta Readiness / Install-on-Phone Validation
+- Phase 21: Beta Readiness / Install-on-Phone Validation
   Broader beta-style validation after Android and first-pass iPhone dev-build workflows are stable: test permissions, notifications, NAS/Tailscale flows, offline/failure behavior, install polish, and performance.
-- Phase 21: Polish and Release Prep
+- Phase 22: Polish and Release Prep
   Onboarding, app icon/splash, empty states, error messages, and later store readiness.
 
 ## How to use this roadmap

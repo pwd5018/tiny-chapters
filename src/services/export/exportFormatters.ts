@@ -19,6 +19,14 @@ function formatTimestamp(value: string) {
   });
 }
 
+function formatCompactDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function escapeMarkdown(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/([*_`])/g, "\\$1");
 }
@@ -48,12 +56,46 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
   lines.push(`Exported: ${formatTimestamp(payload.exportedAt)}`);
   lines.push(`Memories: ${payload.summary.memoryCount}`);
   lines.push(`Photo references: ${payload.summary.totalPhotoReferences}`);
+  lines.push(`Print-ready memories: ${payload.printReadinessSummary.readyMemoryCount}`);
+  lines.push(`Needs photo attention: ${payload.printReadinessSummary.memoriesRequiringPhotoAttentionCount}`);
+  lines.push("");
+  lines.push("## Book Builder Summary");
+  lines.push("");
+  lines.push(
+    `- Date span: ${
+      payload.dateRangeSummary.earliestMemoryDate && payload.dateRangeSummary.latestMemoryDate
+        ? `${formatCompactDate(payload.dateRangeSummary.earliestMemoryDate)} to ${formatCompactDate(payload.dateRangeSummary.latestMemoryDate)}`
+        : "No memories in this export"
+    }`
+  );
+  lines.push(`- Distinct years: ${payload.dateRangeSummary.distinctYearCount}`);
+  lines.push(
+    `- Print readiness: ${payload.printReadinessSummary.readyMemoryCount} ready, ${payload.printReadinessSummary.partialMemoryCount} partial, ${payload.printReadinessSummary.textOnlyMemoryCount} text only, ${payload.printReadinessSummary.needsAttentionMemoryCount} need attention`
+  );
+  lines.push(
+    `- Durable photo coverage: ${payload.printReadinessSummary.memoriesWithDurablePhotosCount} memories include at least one NAS-linked photo`
+  );
+  lines.push(
+    `- Photo risk review: ${payload.pendingNasMatchRefs.length} pending NAS matches, ${payload.missingPhotoRefs.length} missing archive refs, ${payload.summary.localOnlyPhotoCount} local-only refs`
+  );
+
+  if (payload.tagSummary.uniqueTags.length) {
+    lines.push(
+      `- Exported tags: ${payload.tagSummary.uniqueTags
+        .map((tag) => `\`${escapeMarkdown(tag)}\``)
+        .join(", ")}`
+    );
+  } else {
+    lines.push("- Exported tags: none");
+  }
+
   lines.push("");
   lines.push("## Archive Notes");
   lines.push("");
   lines.push("- This export includes saved memories plus attached-photo reference metadata.");
   lines.push("- Tiny Chapters does not bundle the original photo files in this archive.");
-  lines.push("- Pending or missing photo references may still need NAS or local-library resolution later.");
+  lines.push("- The print-readiness fields are meant to help a later local companion workflow find safe book candidates faster.");
+  lines.push("- Pending, local-only, or missing photo references may still need NAS or local-library resolution later.");
 
   if (payload.filters.from || payload.filters.to || payload.filters.tags.length) {
     lines.push("");
@@ -73,6 +115,10 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
     for (const memory of memories) {
       lines.push("");
       lines.push(`### ${escapeMarkdown(formatDate(memory.date))}`);
+      lines.push("");
+      lines.push(`**Book status:** ${escapeMarkdown(memory.printReadinessLabel)}`);
+      lines.push("");
+      lines.push(memory.printReadinessNote.trim());
       lines.push("");
       lines.push(`**Prompt:** ${escapeMarkdown(memory.prompt)}`);
       lines.push("");
@@ -116,6 +162,7 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
           lines.push(`- ${escapeMarkdown(photoName)} (${escapeMarkdown(photo.syncStatusLabel)})`);
           lines.push(`  Source: ${escapeMarkdown(photo.sourceLabel)}`);
           lines.push(`  Reference path: ${escapeMarkdown(photo.path)}`);
+          lines.push(`  Note: ${escapeMarkdown(photo.statusNote)}`);
 
           if (photo.takenAt) {
             lines.push(`  Taken: ${escapeMarkdown(formatTimestamp(photo.takenAt))}`);
@@ -126,6 +173,36 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
           }
         }
       }
+    }
+  }
+
+  if (payload.pendingNasMatchRefs.length) {
+    lines.push("");
+    lines.push("## Pending NAS Match Review");
+    lines.push("");
+
+    for (const ref of payload.pendingNasMatchRefs) {
+      const photoName = ref.filename?.trim() || ref.photoId;
+      lines.push(
+        `- ${escapeMarkdown(photoName)} from ${escapeMarkdown(formatCompactDate(ref.memoryDate))} (${escapeMarkdown(ref.memoryPrompt)})`
+      );
+      lines.push(`  Path: ${escapeMarkdown(ref.path)}`);
+      lines.push(`  Note: ${escapeMarkdown(ref.statusNote)}`);
+    }
+  }
+
+  if (payload.missingPhotoRefs.length) {
+    lines.push("");
+    lines.push("## Missing Archive Photo Review");
+    lines.push("");
+
+    for (const ref of payload.missingPhotoRefs) {
+      const photoName = ref.filename?.trim() || ref.photoId;
+      lines.push(
+        `- ${escapeMarkdown(photoName)} from ${escapeMarkdown(formatCompactDate(ref.memoryDate))} (${escapeMarkdown(ref.memoryPrompt)})`
+      );
+      lines.push(`  Path: ${escapeMarkdown(ref.path)}`);
+      lines.push(`  Note: ${escapeMarkdown(ref.statusNote)}`);
     }
   }
 

@@ -3,6 +3,7 @@ import type { Memory } from "@/types/memory";
 export type DashboardCardType =
   | "daily_prompt"
   | "on_this_day"
+  | "resurfaced_memory"
   | "system_notice";
 
 export type DashboardCardAction =
@@ -12,6 +13,10 @@ export type DashboardCardAction =
     }
   | {
       kind: "open_timeline";
+      label: string;
+    }
+  | {
+      kind: "refresh_resurfaced_memory";
       label: string;
     };
 
@@ -60,7 +65,27 @@ export type SystemNoticeDashboardCard = DashboardCardBase<
   }
 >;
 
+export type ResurfacedMemoryDashboardCard = DashboardCardBase<
+  "resurfaced_memory",
+  | {
+      state: "empty";
+      timeframeLabel: string;
+    }
+  | {
+      state: "ready";
+      timeframeLabel: string;
+      memory: {
+        id: Memory["id"];
+        date: Memory["date"];
+        prompt: Memory["prompt"];
+        text: Memory["text"];
+        photoCount: number;
+      };
+    }
+>;
+
 export type DashboardCard =
   | DailyPromptDashboardCard
   | OnThisDayDashboardCard
+  | ResurfacedMemoryDashboardCard
   | SystemNoticeDashboardCard;
