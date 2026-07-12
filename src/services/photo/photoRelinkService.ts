@@ -1,6 +1,9 @@
 import { getSupabaseClient, type SupabaseMemoryPhotoRefRow } from "@/lib/supabase";
 import { getCurrentUser } from "@/services/auth/authService";
-import { normalizeAttachedPhotoSyncStatus } from "@/services/photo/photoDurability";
+import {
+  normalizeAttachedMediaKind,
+  normalizeAttachedPhotoSyncStatus,
+} from "@/services/photo/photoDurability";
 import {
   inspectPhotoMatchCandidate,
   isNasPhotoMatchingAvailable,
@@ -40,6 +43,7 @@ export type PendingNasMatchDiagnostic = {
 function mapPhotoRefRow(row: SupabaseMemoryPhotoRefRow): AttachedPhotoRef {
   return {
     photoId: row.photo_id,
+    mediaKind: normalizeAttachedMediaKind(row.media_kind, "photo"),
     source: row.source,
     path: row.path,
     attachedAt: row.attached_at,
@@ -49,7 +53,11 @@ function mapPhotoRefRow(row: SupabaseMemoryPhotoRefRow): AttachedPhotoRef {
     fileSize: row.file_size ?? undefined,
     width: row.width ?? undefined,
     height: row.height ?? undefined,
+    durationMs: row.duration_ms ?? undefined,
+    mimeType: row.mime_type ?? undefined,
     localUri: row.local_uri ?? undefined,
+    posterPath: row.poster_path ?? undefined,
+    posterLocalUri: row.poster_local_uri ?? undefined,
     syncStatus: normalizeAttachedPhotoSyncStatus(
       row.sync_status,
       row.source === "local" ? "pending_nas_match" : "linked_to_nas"
@@ -69,7 +77,11 @@ function areRefsEqual(left: AttachedPhotoRef, right: AttachedPhotoRef) {
     left.fileSize === right.fileSize &&
     left.width === right.width &&
     left.height === right.height &&
+    left.durationMs === right.durationMs &&
+    left.mimeType === right.mimeType &&
     left.localUri === right.localUri &&
+    left.posterPath === right.posterPath &&
+    left.posterLocalUri === right.posterLocalUri &&
     left.syncStatus === right.syncStatus
   );
 }
@@ -105,7 +117,7 @@ async function fetchPhotoRefRows(memoryId?: string) {
   let query = supabase
     .from("memory_photo_refs")
     .select(
-      "id, memory_id, user_id, photo_id, source, path, content_hash, attached_at, filename, taken_at, file_size, width, height, local_uri, sync_status"
+      "id, memory_id, user_id, photo_id, media_kind, source, path, content_hash, attached_at, filename, taken_at, file_size, width, height, duration_ms, mime_type, local_uri, poster_path, poster_local_uri, sync_status"
     )
     .eq("user_id", userId)
     .order("attached_at", { ascending: true });
@@ -146,6 +158,7 @@ async function savePhotoRefsForMemory(memoryId: string, refs: AttachedPhotoRef[]
       memory_id: memoryId,
       user_id: userId,
       photo_id: photo.photoId,
+      media_kind: photo.mediaKind ?? "photo",
       source: photo.source,
       path: photo.path,
       content_hash: photo.contentHash ?? null,
@@ -154,7 +167,11 @@ async function savePhotoRefsForMemory(memoryId: string, refs: AttachedPhotoRef[]
       file_size: photo.fileSize ?? null,
       width: photo.width ?? null,
       height: photo.height ?? null,
+      duration_ms: photo.durationMs ?? null,
+      mime_type: photo.mimeType ?? null,
       local_uri: photo.localUri ?? null,
+      poster_path: photo.posterPath ?? null,
+      poster_local_uri: photo.posterLocalUri ?? null,
       sync_status: photo.syncStatus,
       attached_at: photo.attachedAt,
     }))
@@ -205,6 +222,10 @@ export async function attemptNasRelinkForRef(ref: AttachedPhotoRef): Promise<Att
     return ref;
   }
 
+  if ((ref.mediaKind ?? "photo") !== "photo") {
+    return ref;
+  }
+
   try {
     const matchedPhoto = await matchPhotoCandidate(buildMatchCandidate(ref));
 
@@ -214,6 +235,7 @@ export async function attemptNasRelinkForRef(ref: AttachedPhotoRef): Promise<Att
 
     return {
       photoId: matchedPhoto.id,
+      mediaKind: "photo",
       source: "nas",
       path: matchedPhoto.path,
       attachedAt: ref.attachedAt,

@@ -72,7 +72,7 @@ const CADENCE_OPTIONS: Array<{ label: string; value: ReminderCadence }> = [
 
 const PROMPT_STYLE_OPTIONS: Array<{ label: string; value: ReminderPromptStyle }> = [
   { label: "Simple", value: "simple" },
-  { label: "Family", value: "family" },
+  { label: "Life", value: "family" },
   { label: "Reflection", value: "reflection" },
 ];
 
@@ -239,7 +239,7 @@ export default function SettingsScreen() {
       setExportDirectoryState(nextDirectoryState);
     } catch (error) {
       setExportMessage(
-        error instanceof Error ? error.message : "Tiny Chapters could not load memories for export."
+        error instanceof Error ? error.message : "Tiny Chapters could not load entries for export."
       );
       setAllMemories([]);
     } finally {
@@ -451,8 +451,8 @@ export default function SettingsScreen() {
       setNextReminderTimestamp(nextReminder);
       setReminderMessage(
         settingsToSave.enabled
-          ? "Memory reminders updated."
-          : "Memory reminders are turned off."
+          ? "Writing reminders updated."
+          : "Writing reminders are turned off."
       );
     } catch (error) {
       setReminderMessage(
@@ -543,7 +543,7 @@ export default function SettingsScreen() {
       });
 
       setExportMessage(
-        `Saved ${format.toUpperCase()} export with ${archive.summary.memoryCount} mem${archive.summary.memoryCount === 1 ? "ory" : "ories"} and ${archive.summary.totalPhotoReferences} photo reference${archive.summary.totalPhotoReferences === 1 ? "" : "s"} in ${savedExport.directoryLabel}.`
+        `Saved ${format.toUpperCase()} export with ${archive.summary.memoryCount} mem${archive.summary.memoryCount === 1 ? "ory" : "ories"} and ${archive.summary.totalPhotoReferences} media reference${archive.summary.totalPhotoReferences === 1 ? "" : "s"} in ${savedExport.directoryLabel}.`
       );
     } catch (error) {
       setExportMessage(
@@ -645,8 +645,8 @@ export default function SettingsScreen() {
       <View style={styles.exportCard}>
         <Text style={styles.exportTitle}>Archive export</Text>
         <Text style={styles.exportCopy}>
-          Save a readable backup of your memories as JSON or Markdown. This first pass exports
-          memory text plus photo-reference metadata, not the original image files themselves.
+          Save a readable backup of your archive as JSON or Markdown. This first pass exports
+          chapter text plus photo-reference metadata, not the original image files themselves.
         </Text>
         <Text style={styles.exportMeta}>
           Best for backup now, and for a later local book-builder workflow that can gather the real
@@ -739,7 +739,7 @@ export default function SettingsScreen() {
               label="Start date"
               actionLabel="Set"
               modalTitle="Choose a start date"
-              helperText="Only include memories on or after this day."
+              helperText="Only include entries on or after this day."
             />
           ) : null}
           <View style={styles.chipRow}>
@@ -792,7 +792,7 @@ export default function SettingsScreen() {
               label="End date"
               actionLabel="Set"
               modalTitle="Choose an end date"
-              helperText="Only include memories on or before this day."
+              helperText="Only include entries on or before this day."
             />
           ) : null}
         </View>
@@ -813,7 +813,7 @@ export default function SettingsScreen() {
             autoCorrect={false}
           />
           <Text style={styles.exportMeta}>
-            Separate tags with commas. Tiny Chapters will only include memories that have all of
+            Separate tags with commas. Tiny Chapters will only include entries that have all of
             the tags you list here.
           </Text>
         </View>
@@ -822,7 +822,7 @@ export default function SettingsScreen() {
           {isLoadingExportPreview ? (
             <View style={styles.inlineLoadingRow}>
               <ActivityIndicator color={theme.colors.accent} />
-              <Text style={styles.summaryHint}>Loading memories for export preview...</Text>
+              <Text style={styles.summaryHint}>Loading entries for export preview...</Text>
             </View>
           ) : exportFiltersError ? (
             <Text style={styles.permissionWarning}>{exportFiltersError}</Text>
@@ -832,10 +832,10 @@ export default function SettingsScreen() {
                 {exportPreviewCount} mem{exportPreviewCount === 1 ? "ory" : "ories"} selected
               </Text>
               <Text style={styles.summaryHint}>
-                {exportPreviewSummary.totalPhotoReferences} photo reference
+                {exportPreviewSummary.totalPhotoReferences} media reference
                 {exportPreviewSummary.totalPhotoReferences === 1 ? "" : "s"} across{" "}
                 {exportPreviewSummary.memoryWithPhotosCount} mem
-                {exportPreviewSummary.memoryWithPhotosCount === 1 ? "ory" : "ories"} with photos.
+                {exportPreviewSummary.memoryWithPhotosCount === 1 ? "ory" : "ories"} with attachments.
               </Text>
               <Text style={styles.summaryHint}>
                 Linked to NAS: {exportPreviewSummary.linkedNasPhotoCount}. Pending match:{" "}
@@ -966,7 +966,7 @@ export default function SettingsScreen() {
       ) : null}
 
       <View style={styles.reminderCard}>
-        <Text style={styles.reminderTitle}>Memory reminders</Text>
+        <Text style={styles.reminderTitle}>Writing reminders</Text>
         <Text style={styles.reminderCopy}>
           Configure local reminder nudges on this device only. Tiny Chapters keeps these settings in local storage for now, not Supabase.
         </Text>
@@ -991,7 +991,7 @@ export default function SettingsScreen() {
               <View style={styles.toggleCopy}>
                 <Text style={styles.rowTitle}>Enable reminders</Text>
                 <Text style={styles.rowValue}>
-                  Turn local memory reminders on or off for this device.
+                  Turn local writing reminders on or off for this device.
                 </Text>
               </View>
               <Switch

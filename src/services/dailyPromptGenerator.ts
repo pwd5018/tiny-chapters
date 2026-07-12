@@ -14,7 +14,7 @@ function buildFallbackPromptPool(date: Date) {
     `What do you want ${month} to feel like in hindsight?`,
     "What else happened today that deserves its own tiny chapter?",
     "Which ordinary moment from today would be hardest to recreate later?",
-    "What side of your family life showed up today that you want to remember?",
+    "What side of your life showed up today that you want to remember?",
   ];
 }
 

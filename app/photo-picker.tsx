@@ -17,6 +17,8 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { DatePickerField } from "@/components/DatePickerField";
 import { requestMediaLibraryPermission } from "@/services/permissions/permissionService";
 import {
+  formatAttachedMediaDuration,
+  getAttachedPhotoMediaKindLabel,
   getAttachedPhotoPreviewUri,
   getAttachedPhotoSourceLabel,
   getAttachedPhotoStatusNote,
@@ -115,8 +117,11 @@ function mapProviderPhotoToAttachedRef(photo: PhotoAsset): AttachedPhotoRef {
 }
 
 function mapPickerAssetToAttachedRef(asset: ImagePicker.ImagePickerAsset): AttachedPhotoRef {
+  const mediaKind = asset.type === "video" ? "video" : "photo";
+
   return {
     photoId: createLocalPhotoId(),
+    mediaKind,
     source: "local",
     path: asset.uri,
     attachedAt: new Date().toISOString(),
@@ -125,6 +130,8 @@ function mapPickerAssetToAttachedRef(asset: ImagePicker.ImagePickerAsset): Attac
     fileSize: asset.fileSize ?? undefined,
     width: asset.width,
     height: asset.height,
+    durationMs: asset.duration ?? undefined,
+    mimeType: asset.mimeType ?? undefined,
     localUri: asset.uri,
     syncStatus: isNasPhotoMatchingAvailable() ? "pending_nas_match" : "local_only",
   };
@@ -445,7 +452,7 @@ export default function PhotoPickerScreen() {
         allowsEditing: false,
         allowsMultipleSelection: true,
         exif: true,
-        mediaTypes: ["images"],
+        mediaTypes: ["images", "videos"],
         quality: 1,
         selectionLimit: 10,
       });
@@ -467,8 +474,8 @@ export default function PhotoPickerScreen() {
 
       setDeviceMessage(
         matchedCount
-          ? `${matchedCount} phone photo${matchedCount === 1 ? "" : "s"} matched the NAS archive right away.`
-          : "Phone photos were added here and will stay as local references until a NAS match is found."
+          ? `${matchedCount} phone item${matchedCount === 1 ? "" : "s"} matched the NAS archive right away.`
+          : "Phone media were added here and unsupported items will stay as local references until fuller media relink arrives."
       );
     } catch (error) {
       setDeviceMessage(
@@ -499,7 +506,7 @@ export default function PhotoPickerScreen() {
         ListHeaderComponent={
           <View style={styles.headerBlock}>
             <View style={styles.header}>
-              <Text style={styles.title}>Add Photos</Text>
+              <Text style={styles.title}>Add Media</Text>
               <Text style={styles.subtitle}>
                 Choose from your phone or your archive without leaving the writing flow.
               </Text>
@@ -541,11 +548,11 @@ export default function PhotoPickerScreen() {
                   {isLaunchingDeviceLibrary ? (
                     <ActivityIndicator color={theme.colors.buttonText} />
                   ) : (
-                    <Text style={styles.primaryInlineButtonText}>Choose Phone Photos</Text>
+                    <Text style={styles.primaryInlineButtonText}>Choose Phone Media</Text>
                   )}
                 </Pressable>
                 <Text style={styles.totalCount}>
-                  {selectedDeviceAttachments.length} phone photo
+                  {selectedDeviceAttachments.length} phone item
                   {selectedDeviceAttachments.length === 1 ? "" : "s"} selected
                 </Text>
                 {message ? <Text style={styles.deviceMessage}>{message}</Text> : null}
@@ -567,11 +574,16 @@ export default function PhotoPickerScreen() {
                           )}
                           <View style={styles.deviceSelectionCopy}>
                             <Text style={styles.photoFilename} numberOfLines={1}>
-                              {attachment.filename ?? "Phone photo"}
+                              {attachment.filename ?? getAttachedPhotoMediaKindLabel(attachment)}
                             </Text>
                             <Text style={styles.photoTime}>
-                              {getAttachedPhotoSyncStatusLabel(attachment.syncStatus)}
+                              {getAttachedPhotoMediaKindLabel(attachment)} · {getAttachedPhotoSyncStatusLabel(attachment.syncStatus)}
                             </Text>
+                            {attachment.mediaKind === "video" && formatAttachedMediaDuration(attachment.durationMs) ? (
+                              <Text style={styles.photoTime}>
+                                Duration: {formatAttachedMediaDuration(attachment.durationMs)}
+                              </Text>
+                            ) : null}
                             <Text style={styles.deviceSelectionNote} numberOfLines={2}>
                               {getAttachedPhotoStatusNote(attachment)}
                             </Text>
@@ -752,7 +764,7 @@ export default function PhotoPickerScreen() {
 
             <View style={styles.footer}>
               <Text style={styles.footerSummary}>
-                {selectedAttachments.length} total attached photo
+                {selectedAttachments.length} total attached item
                 {selectedAttachments.length === 1 ? "" : "s"}
               </Text>
 

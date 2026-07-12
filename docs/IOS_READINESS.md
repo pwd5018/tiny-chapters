@@ -55,11 +55,11 @@ Current config findings:
 Current iOS permission wording in config is intentionally development-safe:
 
 - Camera
-  Attach a fresh family moment to a memory during development testing
+  Attach a fresh moment to an entry during development testing
 - Photo library
   Attach a phone photo as a temporary reference while the original stays outside Supabase
 - Photo library add
-  Save a captured photo to the library before referencing it from a memory during development testing
+  Save a captured photo to the library before referencing it from an entry during development testing
 - Local network
   Reach a local Photo API on the home network for NAS photo references during development testing
 
@@ -74,7 +74,7 @@ Notes:
 - Open Today and use `Take Photo`
 - Confirm camera permission prompt appears once and can be re-checked in Diagnostics
 - Confirm captured photo preview renders
-- Confirm saved memory stores metadata-only reference behavior, not a Supabase upload
+- Confirm the saved entry stores metadata-only reference behavior, not a Supabase upload
 - Confirm captured photo can still relink later if NAS indexing catches up
 
 ## Media library testing checklist
@@ -83,7 +83,7 @@ Notes:
 - Test both full access and limited-library access on iPhone
 - Confirm selected photos preview correctly after selection
 - Confirm saved refs keep `localUri` as temporary metadata only
-- Confirm memories remain readable if the local asset later becomes unavailable
+- Confirm saved entries remain readable if the local asset later becomes unavailable
 - Confirm the app does not require free-form date entry anywhere in the flow
 
 ## Notifications testing checklist
@@ -112,7 +112,7 @@ Important:
 - Keep the same Photo API host and port `5055`; do not open router ports for Tiny Chapters
 - In Developer Diagnostics, confirm the Photo API network path reports `Tailscale` instead of `Localhost only`
 - Re-test NAS picker, thumbnails, search, and folder browsing on iPhone
-- Re-test memory detail previews and pending NAS relink behavior
+- Re-test chapter detail previews and pending NAS relink behavior
 
 ## URI and local-photo risks
 

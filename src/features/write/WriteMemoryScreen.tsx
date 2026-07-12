@@ -40,7 +40,9 @@ import {
 import { useMemoryService } from "@/services/memoryService";
 import { requestCameraPermission } from "@/services/permissions/permissionService";
 import {
+  formatAttachedMediaDuration,
   getAttachedPhotoDisplayName,
+  getAttachedPhotoMediaKindLabel,
   getAttachedPhotoPreviewUri,
   getAttachedPhotoSyncStatusLabel,
 } from "@/services/photo/photoDurability";
@@ -89,8 +91,11 @@ function mapPickerAssetToAttachedRef(
   asset: ImagePicker.ImagePickerAsset,
   fallbackTakenAt?: string
 ): AttachedPhotoRef {
+  const mediaKind = asset.type === "video" ? "video" : "photo";
+
   return {
     photoId: createLocalPhotoId(),
+    mediaKind,
     source: "local",
     path: asset.uri,
     attachedAt: new Date().toISOString(),
@@ -99,6 +104,8 @@ function mapPickerAssetToAttachedRef(
     fileSize: asset.fileSize ?? undefined,
     width: asset.width,
     height: asset.height,
+    durationMs: asset.duration ?? undefined,
+    mimeType: asset.mimeType ?? undefined,
     localUri: asset.uri,
     syncStatus: isNasPhotoMatchingAvailable() ? "pending_nas_match" : "local_only",
   };
@@ -539,7 +546,7 @@ export function WriteMemoryScreen() {
           <FadeInView>
             <ScreenHero
               eyebrow="Write"
-              title="Capture today's memory."
+              title="Capture today's chapter."
               subtitle="A focused place for the words first, with photos there when they help the story."
               orbLargeColor="#EFD4B8"
               orbSmallColor="#E7BA9D"
@@ -804,7 +811,7 @@ export function WriteMemoryScreen() {
                 onPress={() => setIsPhotoPanelOpen((current) => !current)}
               >
                 <View style={styles.photoSummaryCopy}>
-                  <Text style={styles.sectionLabel}>Photos</Text>
+                  <Text style={styles.sectionLabel}>Media</Text>
                   <Text style={styles.photoHint}>
                     Helpful when they add context, optional when words are enough.
                   </Text>
@@ -849,8 +856,13 @@ export function WriteMemoryScreen() {
                               {displayName}
                             </Text>
                             <Text style={styles.selectedStatus}>
-                              {getAttachedPhotoSyncStatusLabel(photoRef.syncStatus)}
+                              {getAttachedPhotoMediaKindLabel(photoRef)} · {getAttachedPhotoSyncStatusLabel(photoRef.syncStatus)}
                             </Text>
+                            {photoRef.mediaKind === "video" && formatAttachedMediaDuration(photoRef.durationMs) ? (
+                              <Text style={styles.selectedStatus}>
+                                Duration: {formatAttachedMediaDuration(photoRef.durationMs)}
+                              </Text>
+                            ) : null}
                           </View>
 
                           <Pressable
@@ -879,7 +891,7 @@ export function WriteMemoryScreen() {
                         <Text style={styles.photoSectionTitle}>Browse photo sources</Text>
                         <Text style={styles.photoHint}>
                           Keep Write focused on the memory, then open the shared picker when you
-                          want phone or NAS photos.
+                          want phone media or NAS photos.
                         </Text>
                       </View>
                     </View>
@@ -910,13 +922,13 @@ export function WriteMemoryScreen() {
                           router.push("/photo-picker?source=device");
                         }}
                       >
-                        <Text style={styles.secondaryActionText}>Open Photo Picker</Text>
+                          <Text style={styles.secondaryActionText}>Open Media Picker</Text>
                       </Pressable>
                     </View>
 
                     <Text style={styles.photoEmpty}>
                       {photoStatusMessage ||
-                        "The shared picker now holds both Device and NAS choices, so browsing stays in one place."}
+                        "The shared picker now holds both Device and NAS choices, so browsing stays in one place while NAS remains photo-backed for now."}
                     </Text>
                   </View>
                 </FadeInView>

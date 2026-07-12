@@ -4,7 +4,7 @@ Read this file, [ARCHITECTURE.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\
 
 ## Project summary
 
-Tiny Chapters is a private memory capsule and journal app for capturing small family moments. The mobile app stores auth, memory text, tags, and photo reference metadata in Supabase. Original photos stay outside Supabase. In the current personal workflow, a separate local Photo API indexes a Windows-accessible NAS share and serves metadata, thumbnails, and view URLs to the app.
+Tiny Chapters is a private life-memory app for capturing durable personal records across family memories, diary-style entries, reflections, ideas, life events, and other meaningful chapters of lived experience. The current implementation still uses `memory` as the core storage and service term, but the product direction is broader than family-only capture now. The mobile app stores auth, memory text, tags, guided context, collection membership, and photo reference metadata in Supabase. Original photos stay outside Supabase. In the current personal workflow, a separate local Photo API indexes a Windows-accessible NAS share and serves metadata, thumbnails, and view URLs to the app.
 
 ## Current status after Phase 15
 
@@ -24,6 +24,10 @@ Implemented in the repo now:
 - Settings-based archive export actions for JSON and Markdown, oriented around a remembered Android export folder so files land somewhere the user can actually browse
 - First-pass targeted export controls in Settings, including date-range filters, comma-separated tag filters, and a preview summary before export
 - Book-builder-ready export metadata, including date-span and tag summaries, per-memory print-readiness signals, and explicit pending/missing photo review lists for later local companion tooling
+- Phase 18 groundwork inside the existing `memory_photo_refs` seam: additive media metadata columns now exist for `media_kind`, duration, mime type, and optional poster references without renaming the table or breaking photo rows
+- Local device-library video attachments are now accepted through the shared picker and stored as generalized attachment refs, while existing NAS-backed photo flows continue unchanged
+- Export now preserves generalized media metadata for attached refs even though some implementation seams still keep legacy photo-oriented names for compatibility
+- Saved chapter surfaces now render video attachments with media-aware fallback treatment and duration cues instead of assuming every attachment needs an image thumbnail
 - Completed Phase 14 search upgrade with stronger archive filtering across text, exact tags, date range, guided-memory presence, photo presence, and photo durability states
 - Supabase Auth plus Supabase-backed `memories` and `memory_photo_refs`
 - Service-layer boundaries for auth, memories, photos, reminders, diagnostics, and permissions
@@ -81,7 +85,11 @@ Current next-phase plan:
   5. search/export integration
   6. manual-first starter templates
 - Phase 16 is now complete.
-- The next implementation slice should be Phase 17: AI Cleanup and Enrichment.
+- The broader vision and future Personal Assistant boundary are now documented in `docs/LIFE_MEMORY_VISION_AND_INTEGRATION_PLAN.md`.
+- Phase 17 is complete.
+- Phase 17 aligned the canonical docs, broad product framing, and the main user-facing app copy around Tiny Chapters as a broader life-memory platform while keeping the current `memory` storage seams stable.
+- The next implementation phase should be Phase 18: Media Generalization, which should generalize the current photo-only attachment model to support video and later voice without breaking the NAS-first durable-reference architecture.
+- Phase 18 now has partial groundwork in the repo: local video refs and generalized attachment metadata exist, but NAS indexing, poster generation, richer previews, and voice-note support are still unfinished.
 - The next print-focused step should live in a separate local companion workflow that reads the Tiny Chapters export, resolves actual photo files, and assembles print-ready output.
 
 ## Tech stack
@@ -160,6 +168,11 @@ Photo API:
 - Keep the dedicated `write` route focused on composition. Resist pulling the full editor and photo browser back into Today unless the overall IA changes intentionally.
 - Keep collection browsing anchored in Moments and collection/service seams rather than reintroducing archive-density on Today.
 - Keep collection assignment lightweight in Write. Prefer optional save-time assignment plus memory-detail editing over turning the write flow into a metadata checklist.
+- Keep the current `memory` implementation seams stable until a later migration clearly justifies a rename to `chapter` or a broader domain term.
+- Treat Tiny Chapters as the future provider of durable life records and the Personal Assistant as a future consumer. Do not design future integrations around direct database-table access from another app.
+- Preserve the distinction between user-authored truth, approved derived metadata, unconfirmed AI inference, and temporary machine-generated context.
+- Do not let future assistant or AI integrations silently promote temporary context or inferred metadata into durable Tiny Chapters truth without explicit user approval.
+- Plan future media support as a generalized attachment model that can expand from photos to video and later voice while keeping original binaries outside Supabase.
 - Keep guided-memory question state in the dedicated Write flow. Do not spread multi-step guided writing across Today, Moments, or Settings.
 - Treat the current redesign as the visual baseline for future milestone work. Extend the calmer Today, stronger Moments ownership, and single writing path instead of reintroducing duplicate actions or crowded home-screen sections.
 - Never expose secrets in UI, logs, screenshots, sample env files, or docs.

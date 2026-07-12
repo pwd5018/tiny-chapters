@@ -1,4 +1,41 @@
-import type { AttachedPhotoRef, AttachedPhotoSyncStatus } from "@/types/memory";
+import type { AttachedMediaKind, AttachedPhotoRef, AttachedPhotoSyncStatus } from "@/types/memory";
+
+export function normalizeAttachedMediaKind(
+  value: string | null | undefined,
+  fallback: AttachedMediaKind = "photo"
+): AttachedMediaKind {
+  switch (value) {
+    case "photo":
+    case "video":
+    case "voice":
+      return value;
+    default:
+      return fallback;
+  }
+}
+
+export function getAttachedPhotoMediaKindLabel(ref: AttachedPhotoRef) {
+  switch (ref.mediaKind ?? "photo") {
+    case "photo":
+      return "Photo";
+    case "video":
+      return "Video";
+    case "voice":
+      return "Voice note";
+  }
+}
+
+export function formatAttachedMediaDuration(durationMs: number | undefined) {
+  if (!durationMs || durationMs <= 0) {
+    return null;
+  }
+
+  const totalSeconds = Math.round(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
 
 export function normalizeAttachedPhotoSyncStatus(
   value: string | null | undefined,
@@ -32,28 +69,34 @@ export function getAttachedPhotoSyncStatusLabel(status: AttachedPhotoSyncStatus)
 }
 
 export function getAttachedPhotoStatusNote(ref: AttachedPhotoRef) {
+  const mediaLabel = getAttachedPhotoMediaKindLabel(ref).toLowerCase();
+
   switch (ref.syncStatus) {
     case "pending_nas_match":
-      return "This photo is attached now and Tiny Chapters will keep trying to match it to your NAS archive.";
+      return `This ${mediaLabel} is attached now and Tiny Chapters will keep trying to match it to your NAS archive.`;
     case "linked_to_nas":
-      return "This memory now points at the NAS archive, so it should stay previewable across devices.";
+      return `This chapter now points at the NAS archive for that ${mediaLabel}, so it should stay available across devices.`;
     case "local_only":
-      return "This photo only lives on the current device for now, so preview availability may not carry to another phone.";
+      return `This ${mediaLabel} only lives on the current device for now, so availability may not carry to another phone.`;
     case "missing":
-      return "The archive reference is saved, but the original photo is not reachable right now.";
+      return `The archive reference is saved, but the original ${mediaLabel} is not reachable right now.`;
     case "preserved_copy":
-      return "Tiny Chapters is using a preserved copy because the original reference is not available.";
+      return `Tiny Chapters is using a preserved copy because the original ${mediaLabel} reference is not available.`;
   }
 }
 
 export function getAttachedPhotoSourceLabel(ref: AttachedPhotoRef) {
+  const mediaLabel = getAttachedPhotoMediaKindLabel(ref);
+
   switch (ref.source) {
     case "nas":
       return "NAS archive";
     case "mock":
       return "Mock source";
     case "local":
-      return ref.syncStatus === "linked_to_nas" ? "Phone photo (matched to NAS)" : "Phone photo";
+      return ref.syncStatus === "linked_to_nas"
+        ? `Phone ${mediaLabel.toLowerCase()} (matched to NAS)`
+        : `Phone ${mediaLabel.toLowerCase()}`;
   }
 }
 
@@ -64,7 +107,10 @@ export function getAttachedPhotoDisplayName(ref: AttachedPhotoRef) {
 
   if (ref.localUri) {
     const localUriParts = ref.localUri.split("/");
-    return localUriParts[localUriParts.length - 1] || "Captured photo";
+    return (
+      localUriParts[localUriParts.length - 1] ||
+      `Captured ${getAttachedPhotoMediaKindLabel(ref).toLowerCase()}`
+    );
   }
 
   const pathParts = ref.path.split(/[\\/]/);
@@ -72,6 +118,10 @@ export function getAttachedPhotoDisplayName(ref: AttachedPhotoRef) {
 }
 
 export function getAttachedPhotoPreviewUri(ref: AttachedPhotoRef) {
+  if ((ref.mediaKind ?? "photo") !== "photo") {
+    return ref.posterLocalUri ?? ref.posterPath ?? null;
+  }
+
   if (ref.localUri && ref.syncStatus !== "linked_to_nas") {
     return ref.localUri;
   }

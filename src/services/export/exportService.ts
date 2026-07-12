@@ -1,4 +1,5 @@
 import {
+  getAttachedPhotoMediaKindLabel,
   getAttachedPhotoSourceLabel,
   getAttachedPhotoStatusNote,
   getAttachedPhotoSyncStatusLabel,
@@ -11,6 +12,7 @@ import type {
   MemoryExportEntry,
   MemoryExportFilters,
   MemoryExportFilterSummary,
+  MemoryExportMediaSummary,
   MemoryExportPhotoAttentionEntry,
   MemoryExportPrintReadiness,
   MemoryExportPrintReadinessSummary,
@@ -18,7 +20,7 @@ import type {
   MemoryExportTagSummary,
 } from "@/types/export";
 
-const EXPORT_SCHEMA_VERSION = "2026-07-phase16-v1" as const;
+const EXPORT_SCHEMA_VERSION = "2026-07-phase18-v1" as const;
 
 function normalizeDateBoundary(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -154,6 +156,7 @@ function mapMemoryToExportEntry(memory: Memory): MemoryExportEntry {
     attachedPhotoCount: memory.attachedPhotos.length,
     photoManifest: memory.attachedPhotos.map((photo) => ({
       photoId: photo.photoId,
+      mediaKind: photo.mediaKind ?? "photo",
       source: photo.source,
       path: photo.path,
       filename: photo.filename ?? null,
@@ -163,11 +166,14 @@ function mapMemoryToExportEntry(memory: Memory): MemoryExportEntry {
       fileSize: photo.fileSize ?? null,
       width: photo.width ?? null,
       height: photo.height ?? null,
+      durationMs: photo.durationMs ?? null,
+      mimeType: photo.mimeType ?? null,
       syncStatus: photo.syncStatus,
       syncStatusLabel: getAttachedPhotoSyncStatusLabel(photo.syncStatus),
-      sourceLabel: getAttachedPhotoSourceLabel(photo),
+      sourceLabel: `${getAttachedPhotoMediaKindLabel(photo)} via ${getAttachedPhotoSourceLabel(photo)}`,
       statusNote: getAttachedPhotoStatusNote(photo),
       localUriIncluded: Boolean(photo.localUri),
+      posterPathIncluded: Boolean(photo.posterPath || photo.posterLocalUri),
     })),
     hasPhotos: readiness.hasPhotos,
     hasDurableNasPhoto: readiness.hasDurableNasPhoto,
@@ -300,6 +306,50 @@ function buildCollectionSummary(memories: MemoryExportEntry[]): MemoryExportColl
   };
 }
 
+function buildMediaSummary(memories: MemoryExportEntry[]): MemoryExportMediaSummary {
+  const summary: MemoryExportMediaSummary = {
+    photoReferenceCount: 0,
+    videoReferenceCount: 0,
+    voiceReferenceCount: 0,
+    referencesWithPosterPreviewCount: 0,
+    referencesWithLocalPreviewCount: 0,
+    memoriesWithVideoCount: 0,
+  };
+
+  for (const memory of memories) {
+    let memoryHasVideo = false;
+
+    for (const photo of memory.photoManifest) {
+      switch (photo.mediaKind) {
+        case "photo":
+          summary.photoReferenceCount += 1;
+          break;
+        case "video":
+          summary.videoReferenceCount += 1;
+          memoryHasVideo = true;
+          break;
+        case "voice":
+          summary.voiceReferenceCount += 1;
+          break;
+      }
+
+      if (photo.posterPathIncluded) {
+        summary.referencesWithPosterPreviewCount += 1;
+      }
+
+      if (photo.localUriIncluded) {
+        summary.referencesWithLocalPreviewCount += 1;
+      }
+    }
+
+    if (memoryHasVideo) {
+      summary.memoriesWithVideoCount += 1;
+    }
+  }
+
+  return summary;
+}
+
 function buildPrintReadinessSummary(
   memories: MemoryExportEntry[]
 ): MemoryExportPrintReadinessSummary {
@@ -402,6 +452,7 @@ export function buildMemoryArchiveExport(
     summary: buildExportSummary(exportEntries),
     dateRangeSummary: buildDateRangeSummary(exportEntries),
     tagSummary: buildTagSummary(exportEntries),
+    mediaSummary: buildMediaSummary(exportEntries),
     collectionSummary: buildCollectionSummary(exportEntries),
     printReadinessSummary: buildPrintReadinessSummary(exportEntries),
     pendingNasMatchRefs: buildPhotoAttentionRefs(exportEntries, "pending_nas_match"),

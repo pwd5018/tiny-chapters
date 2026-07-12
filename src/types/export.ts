@@ -1,4 +1,5 @@
 import type {
+  AttachedMediaKind,
   AttachedPhotoSource,
   AttachedPhotoSyncStatus,
   MemoryCollectionKind,
@@ -13,6 +14,7 @@ export type MemoryExportCollectionEntry = {
 
 export type MemoryExportPhotoManifestEntry = {
   photoId: string;
+  mediaKind: AttachedMediaKind;
   source: AttachedPhotoSource;
   path: string;
   filename: string | null;
@@ -22,11 +24,14 @@ export type MemoryExportPhotoManifestEntry = {
   fileSize: number | null;
   width: number | null;
   height: number | null;
+  durationMs: number | null;
+  mimeType: string | null;
   syncStatus: AttachedPhotoSyncStatus;
   syncStatusLabel: string;
   sourceLabel: string;
   statusNote: string;
   localUriIncluded: boolean;
+  posterPathIncluded: boolean;
 };
 
 export type MemoryExportPrintReadiness = "ready" | "partial" | "text_only" | "needs_attention";
@@ -102,6 +107,15 @@ export type MemoryExportTagSummary = {
   tagFrequency: Record<string, number>;
 };
 
+export type MemoryExportMediaSummary = {
+  photoReferenceCount: number;
+  videoReferenceCount: number;
+  voiceReferenceCount: number;
+  referencesWithPosterPreviewCount: number;
+  referencesWithLocalPreviewCount: number;
+  memoriesWithVideoCount: number;
+};
+
 export type MemoryExportPrintReadinessSummary = {
   readyMemoryCount: number;
   partialMemoryCount: number;
@@ -118,13 +132,14 @@ export type MemoryExportCollectionSummary = {
 };
 
 export type MemoryArchiveExport = {
-  schemaVersion: "2026-07-phase16-v1";
+  schemaVersion: "2026-07-phase18-v1";
   exportType: "tiny-chapters-archive";
   exportedAt: string;
   filters: MemoryExportFilterSummary;
   summary: MemoryExportSummary;
   dateRangeSummary: MemoryExportDateRangeSummary;
   tagSummary: MemoryExportTagSummary;
+  mediaSummary: MemoryExportMediaSummary;
   collectionSummary: MemoryExportCollectionSummary;
   printReadinessSummary: MemoryExportPrintReadinessSummary;
   pendingNasMatchRefs: MemoryExportPhotoAttentionEntry[];

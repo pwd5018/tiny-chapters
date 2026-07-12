@@ -19,6 +19,13 @@ function formatTimestamp(value: string) {
   });
 }
 
+function formatDuration(durationMs: number) {
+  const totalSeconds = Math.max(Math.round(durationMs / 1000), 0);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
 function formatCompactDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, {
     month: "short",
@@ -55,9 +62,9 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
   lines.push("");
   lines.push(`Exported: ${formatTimestamp(payload.exportedAt)}`);
   lines.push(`Memories: ${payload.summary.memoryCount}`);
-  lines.push(`Photo references: ${payload.summary.totalPhotoReferences}`);
+  lines.push(`Media references: ${payload.summary.totalPhotoReferences}`);
   lines.push(`Print-ready memories: ${payload.printReadinessSummary.readyMemoryCount}`);
-  lines.push(`Needs photo attention: ${payload.printReadinessSummary.memoriesRequiringPhotoAttentionCount}`);
+  lines.push(`Needs media attention: ${payload.printReadinessSummary.memoriesRequiringPhotoAttentionCount}`);
   lines.push("");
   lines.push("## Book Builder Summary");
   lines.push("");
@@ -73,10 +80,16 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
     `- Print readiness: ${payload.printReadinessSummary.readyMemoryCount} ready, ${payload.printReadinessSummary.partialMemoryCount} partial, ${payload.printReadinessSummary.textOnlyMemoryCount} text only, ${payload.printReadinessSummary.needsAttentionMemoryCount} need attention`
   );
   lines.push(
-    `- Durable photo coverage: ${payload.printReadinessSummary.memoriesWithDurablePhotosCount} memories include at least one NAS-linked photo`
+    `- Durable media coverage: ${payload.printReadinessSummary.memoriesWithDurablePhotosCount} memories include at least one NAS-linked media reference`
   );
   lines.push(
-    `- Photo risk review: ${payload.pendingNasMatchRefs.length} pending NAS matches, ${payload.missingPhotoRefs.length} missing archive refs, ${payload.summary.localOnlyPhotoCount} local-only refs`
+    `- Media mix: ${payload.mediaSummary.photoReferenceCount} photos, ${payload.mediaSummary.videoReferenceCount} videos, ${payload.mediaSummary.voiceReferenceCount} voice notes`
+  );
+  lines.push(
+    `- Preview coverage: ${payload.mediaSummary.referencesWithPosterPreviewCount} refs with poster previews, ${payload.mediaSummary.referencesWithLocalPreviewCount} refs with local-device previews`
+  );
+  lines.push(
+    `- Media risk review: ${payload.pendingNasMatchRefs.length} pending NAS matches, ${payload.missingPhotoRefs.length} missing archive refs, ${payload.summary.localOnlyPhotoCount} local-only refs`
   );
 
   if (payload.tagSummary.uniqueTags.length) {
@@ -102,10 +115,10 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
   lines.push("");
   lines.push("## Archive Notes");
   lines.push("");
-  lines.push("- This export includes saved memories plus attached-photo reference metadata.");
-  lines.push("- Tiny Chapters does not bundle the original photo files in this archive.");
+  lines.push("- This export includes saved memories plus attached media reference metadata.");
+  lines.push("- Tiny Chapters does not bundle the original photo or video files in this archive.");
   lines.push("- The print-readiness fields are meant to help a later local companion workflow find safe book candidates faster.");
-  lines.push("- Pending, local-only, or missing photo references may still need NAS or local-library resolution later.");
+  lines.push("- Pending, local-only, or missing media references may still need NAS or local-library resolution later.");
 
   if (payload.filters.from || payload.filters.to || payload.filters.tags.length) {
     lines.push("");
@@ -173,12 +186,14 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
 
       if (memory.photoManifest.length) {
         lines.push("");
-        lines.push("**Attached photos**");
+        lines.push("**Attached media**");
         lines.push("");
 
         for (const photo of memory.photoManifest) {
           const photoName = photo.filename?.trim() || photo.photoId;
-          lines.push(`- ${escapeMarkdown(photoName)} (${escapeMarkdown(photo.syncStatusLabel)})`);
+          lines.push(
+            `- ${escapeMarkdown(photoName)} [${escapeMarkdown(photo.mediaKind)}] (${escapeMarkdown(photo.syncStatusLabel)})`
+          );
           lines.push(`  Source: ${escapeMarkdown(photo.sourceLabel)}`);
           lines.push(`  Reference path: ${escapeMarkdown(photo.path)}`);
           lines.push(`  Note: ${escapeMarkdown(photo.statusNote)}`);
@@ -189,6 +204,20 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
 
           if (photo.contentHash) {
             lines.push(`  Content hash: \`${escapeMarkdown(photo.contentHash)}\``);
+          }
+
+          if (photo.durationMs) {
+            lines.push(`  Duration: ${escapeMarkdown(formatDuration(photo.durationMs))}`);
+          }
+
+          if (photo.mimeType) {
+            lines.push(`  MIME type: ${escapeMarkdown(photo.mimeType)}`);
+          }
+
+          if (photo.mediaKind !== "photo") {
+            lines.push(
+              `  Preview coverage: ${photo.posterPathIncluded ? "poster available" : "no poster yet"}${photo.localUriIncluded ? "; local device preview metadata present" : ""}`
+            );
           }
         }
       }

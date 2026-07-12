@@ -49,7 +49,7 @@ function formatCollectionDateRange(collection: MemoryCollection) {
     return `${startLabel} to ${endLabel}`;
   }
 
-  return startLabel ?? endLabel ?? "A longer family chapter";
+  return startLabel ?? endLabel ?? "A longer life chapter";
 }
 
 export default function CollectionDetailScreen() {
@@ -129,7 +129,7 @@ export default function CollectionDetailScreen() {
             <Text style={styles.subtitle}>
               {collection
                 ? collection.description?.trim() ||
-                  "A bigger chapter in your family archive, gathered into one place."
+                  "A bigger chapter in your archive, gathered into one place."
                 : "This archive chapter is no longer available."}
             </Text>
           </View>
@@ -150,7 +150,7 @@ export default function CollectionDetailScreen() {
                 <View style={styles.summaryHeader}>
                   <View style={styles.metricCard}>
                     <Text style={styles.metricValue}>{collection.memoryCount}</Text>
-                    <Text style={styles.metricLabel}>Memories</Text>
+                    <Text style={styles.metricLabel}>Entries</Text>
                   </View>
                   <View style={styles.metricCardWide}>
                     <Text style={styles.metricCaption}>Date range</Text>
@@ -164,7 +164,7 @@ export default function CollectionDetailScreen() {
 
             <FadeInView delay={110}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionLabel}>Memories in this chapter</Text>
+                <Text style={styles.sectionLabel}>Entries in this chapter</Text>
                 <Text style={styles.sectionHint}>
                   Browse the moments that belong to this longer stretch of life.
                 </Text>
@@ -183,7 +183,7 @@ export default function CollectionDetailScreen() {
               <FadeInView delay={130}>
                 <View style={styles.stateCard}>
                   <Text style={styles.stateText}>
-                    This collection exists, but it does not have any memories in it yet.
+                    This collection exists, but it does not have any entries in it yet.
                   </Text>
                 </View>
               </FadeInView>

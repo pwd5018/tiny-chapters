@@ -132,17 +132,67 @@ Future Codex sessions should check this file first when planning work. Mark phas
   6. Phase 16.6: Manual-first starter templates
      Completed.
      The collection-assignment flow now includes manual-first starter templates for Vacation, School Year, Holiday, and Kid Chapter so users can start from a familiar chapter shape without needing AI suggestion or a separate management screen.
-- Phase 17: AI Cleanup and Enrichment
-  Clean up text, generate titles, suggest tags, and never overwrite originals without explicit user confirmation.
-- Phase 18: Year in Review
+- Phase 17: Product Language and Domain Framing
+  Completed.
+  Tiny Chapters now frames itself as a broader personal life-memory platform in the canonical docs and main user-facing app copy, while intentionally keeping the current `memory` storage and service seams stable.
+  Completed slices:
+  1. Phase 17.1: Vision and terminology alignment
+     Completed.
+     Tiny Chapters now has an explicit life-memory vision that keeps family memories first-class without making them the only supported shape.
+  2. Phase 17.2: Storage-language boundary
+     Completed.
+     The repo now documents and follows a practical boundary: keep `memory` for current implementation seams, and prefer broader chapter or entry language in product-facing surfaces.
+  3. Phase 17.3: Future integration framing
+     Completed.
+     Tiny Chapters now documents its future provider role for trusted clients such as the Personal Assistant, including boundaries around durable truth, provenance, and authorization.
+- Phase 18: Media Generalization
+  Planned.
+  Tiny Chapters should evolve from a photo-only attachment model into a broader media-reference model that can support video and later voice while preserving the existing NAS-first durable-reference architecture.
+  Groundwork now in the repo:
+  1. `memory_photo_refs` now carries additive media metadata such as `media_kind`, duration, mime type, and optional poster references without renaming the table.
+  2. The shared device picker now accepts local video attachments alongside photos.
+  3. Saved chapter surfaces now render video attachments more intentionally with media labels, duration cues, and non-photo fallback cards instead of assuming every attachment is a broken image.
+  4. Export now preserves generalized media metadata for attached refs and summarizes media mix plus preview coverage while older photo-oriented seam names remain in place for compatibility.
+  Still not complete:
+  1. NAS indexing and matching are still photo-backed.
+  2. Non-photo preview or poster generation is still minimal.
+  3. Voice-note support is still future work.
+  Planned slices:
+  1. Phase 18.1: Media model and migration plan
+     Generalize the current photo reference shape into a broader media-reference contract without breaking existing photo flows.
+  2. Phase 18.2: Local video attachment support
+     Allow attached local video references in the capture flow with metadata such as filename, duration, dimensions, and attachment state.
+  3. Phase 18.3: Export and durability updates
+     Preserve generalized media metadata in export and keep local-to-NAS durability behavior coherent.
+- Phase 19: Metadata, Provenance, and Draft Lifecycle
+  Planned.
+  Tiny Chapters should distinguish user-authored truth from approved derived metadata, unconfirmed AI inference, and assistant-proposed drafts.
+  Planned slices:
+  1. confirmed metadata seams
+  2. inferred metadata seams
+  3. draft lifecycle for user-started and assistant-proposed entries
+  4. retention and deletion-state expansion
+- Phase 20: Retrieval and Search Foundation
+  Planned.
+  Expand the current archive retrieval model so Tiny Chapters can later support richer people/place/project/topic search and provider-ready context retrieval.
+- Phase 21: Provider Boundary and Authorization
+  Planned.
+  Define Tiny Chapters as a secure life-memory provider with scoped permissions, retrieval logging, deep-link behavior, and revocation-ready consumer access.
+- Phase 22: Personal Assistant Read-Only Integration
+  Planned.
+  Let the Personal Assistant search and read approved Tiny Chapters content through controlled contracts without duplicating full durable records.
+- Phase 23: Personal Assistant Proposed Drafts
+  Planned.
+  Allow the Personal Assistant to submit proposed Tiny Chapters drafts that remain pending until approved inside Tiny Chapters.
+- Phase 24: Year in Review
   Recap memories, top people/themes/places, and share/export flows.
-- Phase 19: Product Mode and Cloud Options
+- Phase 25: Product Mode and Cloud Options
   Support non-NAS users, optional cloud photo preservation, and explicit storage/privacy model decisions.
-- Phase 20: Optional Home Agent
+- Phase 26: Optional Home Agent
   Power-user NAS/private archive support with possible cloud relay later.
-- Phase 21: Beta Readiness / Install-on-Phone Validation
+- Phase 27: Beta Readiness / Install-on-Phone Validation
   Broader beta-style validation after Android and first-pass iPhone dev-build workflows are stable: test permissions, notifications, NAS/Tailscale flows, offline/failure behavior, install polish, and performance.
-- Phase 22: Polish and Release Prep
+- Phase 28: Polish and Release Prep
   Onboarding, app icon/splash, empty states, error messages, and later store readiness.
 
 ## How to use this roadmap

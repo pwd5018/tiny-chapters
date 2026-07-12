@@ -28,8 +28,8 @@ export function generateLocalGuidedFollowUpQuestions(
     questions.push("What tiny detail would you want your future self to picture here?");
   }
 
-  if (/(kid|kids|daughter|son|mom|dad|family|we|our|he|she|they)/.test(normalizedAnswer)) {
-    questions.push("How did someone in your family react while this was happening?");
+  if (/(kid|kids|daughter|son|mom|dad|family|friend|coworker|partner|we|our|he|she|they)/.test(normalizedAnswer)) {
+    questions.push("How did someone around you react while this was happening?");
   } else {
     questions.push("How did this moment feel while it was happening?");
   }

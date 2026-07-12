@@ -1,4 +1,5 @@
 export type AttachedPhotoSource = "nas" | "local" | "mock";
+export type AttachedMediaKind = "photo" | "video" | "voice";
 export type AttachedPhotoSyncStatus =
   | "local_only"
   | "pending_nas_match"
@@ -39,6 +40,7 @@ export type MemoryGuidanceContext = {
 
 export type AttachedPhotoRef = {
   photoId: string;
+  mediaKind?: AttachedMediaKind;
   source: AttachedPhotoSource;
   path: string;
   attachedAt: string;
@@ -48,7 +50,11 @@ export type AttachedPhotoRef = {
   fileSize?: number;
   width?: number;
   height?: number;
+  durationMs?: number;
+  mimeType?: string;
   localUri?: string;
+  posterPath?: string;
+  posterLocalUri?: string;
   syncStatus: AttachedPhotoSyncStatus;
 };
 

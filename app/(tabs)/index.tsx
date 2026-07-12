@@ -218,7 +218,7 @@ export default function TodayScreen() {
           <View style={styles.reminderHintCard}>
             <View style={styles.reminderHintDot} />
             <View style={styles.reminderHintCopy}>
-              <Text style={styles.reminderHintTitle}>Memory reminders are on</Text>
+              <Text style={styles.reminderHintTitle}>Writing reminders are on</Text>
               <Text style={styles.reminderHintText}>
                 {getReminderDescription(reminderSettings)}
               </Text>

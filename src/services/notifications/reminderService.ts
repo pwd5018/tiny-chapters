@@ -120,7 +120,7 @@ function getPromptMessage(promptStyle: ReminderPromptStyle): ReminderMessage {
     case "family":
       return {
         title: "Tiny Chapters",
-        body: "What's one moment from today you don't want to forget?",
+        body: "What's one moment from today you want to keep?",
       };
     case "reflection":
       return {

@@ -56,7 +56,7 @@ export function AuthScreen() {
         <Text style={styles.eyebrow}>Tiny Chapters</Text>
         <Text style={styles.title}>A private place for the little moments.</Text>
         <Text style={styles.subtitle}>
-          Sign in to keep your memories in Supabase while your photos stay as references.
+          Sign in to keep your chapters in Supabase while your photos stay as references.
         </Text>
 
         {!isConfigured ? (

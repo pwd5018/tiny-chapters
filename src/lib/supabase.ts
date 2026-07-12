@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { supabaseAnonKey, supabaseUrl } from "@/config/appConfig";
-import type { MemoryCollectionKind, MemoryGuidanceContext } from "@/types/memory";
+import type { AttachedMediaKind, MemoryCollectionKind, MemoryGuidanceContext } from "@/types/memory";
 
 const secureStoreAdapter = {
   getItem: (key: string) => SecureStore.getItemAsync(key),
@@ -51,6 +51,7 @@ export type SupabaseMemoryPhotoRefRow = {
   memory_id: string;
   user_id: string;
   photo_id: string;
+  media_kind: AttachedMediaKind | null;
   source: "nas" | "local" | "mock";
   path: string;
   content_hash: string | null;
@@ -60,7 +61,11 @@ export type SupabaseMemoryPhotoRefRow = {
   file_size: number | null;
   width: number | null;
   height: number | null;
+  duration_ms: number | null;
+  mime_type: string | null;
   local_uri: string | null;
+  poster_path: string | null;
+  poster_local_uri: string | null;
   sync_status: string | null;
 };
 

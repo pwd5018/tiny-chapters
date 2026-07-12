@@ -83,7 +83,7 @@ function buildFilterSummary(options: {
     parts.push(`photo states ${labels.join(", ")}`);
   }
 
-  return parts.length ? parts.join(" | ") : "All memories";
+  return parts.length ? parts.join(" | ") : "All chapters";
 }
 
 function FilterPill({
@@ -191,7 +191,7 @@ export default function SearchScreen() {
         }
       } catch (error) {
         if (isActive) {
-          setErrorMessage(error instanceof Error ? error.message : "Could not search memories.");
+          setErrorMessage(error instanceof Error ? error.message : "Could not search chapters.");
         }
       } finally {
         if (isActive) {
@@ -241,7 +241,7 @@ export default function SearchScreen() {
         <ScreenHero
           eyebrow="Search"
           title="Find the exact moment you meant."
-          subtitle="Search memory text, prompts, tags, guided answers, dates, and photo reference details with stronger filters."
+          subtitle="Search chapter text, prompts, tags, guided answers, dates, and photo reference details with stronger filters."
           orbLargeColor="#E8D9C8"
           orbSmallColor="#DDBFA7"
         />
@@ -259,7 +259,7 @@ export default function SearchScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search by memory text, prompt, tag, collection, date, or photo details"
+            placeholder="Search by chapter text, prompt, tag, collection, date, or photo details"
             placeholderTextColor={theme.colors.textSoft}
             style={styles.searchInput}
           />
@@ -300,7 +300,7 @@ export default function SearchScreen() {
               </View>
             ) : (
               <Text style={styles.helperText}>
-                Create collections from Write or memory detail and they will show up here.
+                Create collections from Write or chapter detail and they will show up here.
               </Text>
             )}
           </View>
@@ -383,7 +383,7 @@ export default function SearchScreen() {
       <FadeInView delay={120}>
         <View style={styles.summaryCard}>
           <Text style={styles.resultCount}>
-            {results.length} {results.length === 1 ? "memory" : "memories"}
+            {results.length} {results.length === 1 ? "chapter" : "chapters"}
           </Text>
           <Text style={styles.summaryText}>{filterSummary}</Text>
         </View>
@@ -393,7 +393,7 @@ export default function SearchScreen() {
         <FadeInView delay={150}>
           <View style={styles.stateCard}>
             <ActivityIndicator color={theme.colors.accent} />
-            <Text style={styles.stateText}>Searching memories...</Text>
+            <Text style={styles.stateText}>Searching chapters...</Text>
           </View>
         </FadeInView>
       ) : errorMessage ? (
@@ -413,7 +413,7 @@ export default function SearchScreen() {
             <FadeInView delay={170}>
               <View style={styles.stateCard}>
                 <Text style={styles.stateText}>
-                  No memories matched these filters. Try widening the date range or removing a tag.
+                  No chapters matched these filters. Try widening the date range or removing a tag.
                 </Text>
               </View>
             </FadeInView>

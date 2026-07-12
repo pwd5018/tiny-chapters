@@ -19,7 +19,9 @@ import {
   CollectionAssignmentCard,
 } from "@/components/CollectionAssignmentCard";
 import {
+  formatAttachedMediaDuration,
   getAttachedPhotoDisplayName,
+  getAttachedPhotoMediaKindLabel,
   getAttachedPhotoPreviewUri,
   getAttachedPhotoSourceLabel,
   getAttachedPhotoStatusNote,
@@ -99,36 +101,59 @@ function AttachmentCard({
   const fallbackPreviewUri = getAttachedPhotoPreviewUri(attachment);
   const previewUri = fallbackPreviewUri ?? (thumbnailFailed ? photoAsset?.viewUrl : photoAsset?.thumbnailUrl);
   const showPlaceholder = !previewUri || (thumbnailFailed && viewFailed);
+  const mediaKindLabel = getAttachedPhotoMediaKindLabel(attachment);
+  const formattedDuration = formatAttachedMediaDuration(attachment.durationMs);
 
   return (
     <View style={styles.attachmentCard}>
       {showPlaceholder ? (
         <View style={styles.attachmentPlaceholder}>
-          <Text style={styles.attachmentPlaceholderText}>No preview</Text>
+          <Text style={styles.attachmentPlaceholderText}>
+            {attachment.mediaKind === "video" ? "Video saved" : "No preview"}
+          </Text>
+          {formattedDuration ? (
+            <Text style={styles.attachmentPlaceholderMeta}>{formattedDuration}</Text>
+          ) : null}
         </View>
       ) : (
-        <Image
-          source={getPhotoImageSource(previewUri)}
-          style={styles.attachmentPreview}
-          onError={() => {
-            if (photoAsset && !thumbnailFailed) {
-              setThumbnailFailed(true);
-              return;
-            }
+        <View style={styles.attachmentPreviewFrame}>
+          <Image
+            source={getPhotoImageSource(previewUri)}
+            style={styles.attachmentPreview}
+            onError={() => {
+              if (photoAsset && !thumbnailFailed) {
+                setThumbnailFailed(true);
+                return;
+              }
 
-            setViewFailed(true);
-          }}
-        />
+              setViewFailed(true);
+            }}
+          />
+          {attachment.mediaKind === "video" ? (
+            <View style={styles.attachmentBadge}>
+              <Text style={styles.attachmentBadgeText}>
+                Video{formattedDuration ? ` ${formattedDuration}` : ""}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       )}
 
       <View style={styles.attachmentCopy}>
         <Text style={styles.attachmentName} numberOfLines={1}>
           {getAttachedPhotoDisplayName(attachment)}
         </Text>
+        <Text style={styles.attachmentMeta}>Kind: {mediaKindLabel}</Text>
         <Text style={styles.attachmentMeta}>Source: {getAttachedPhotoSourceLabel(attachment)}</Text>
         <Text style={styles.attachmentMeta}>
           {getAttachedPhotoSyncStatusLabel(attachment.syncStatus)}
         </Text>
+        {formattedDuration ? (
+          <Text style={styles.attachmentMeta}>Duration: {formattedDuration}</Text>
+        ) : null}
+        {attachment.mimeType ? (
+          <Text style={styles.attachmentMeta}>Type: {attachment.mimeType}</Text>
+        ) : null}
         <Text style={styles.attachmentNote}>{getAttachedPhotoStatusNote(attachment)}</Text>
         <Text style={styles.attachmentPath} numberOfLines={2}>
           {attachment.path}
@@ -192,7 +217,7 @@ export default function MemoryDetailScreen() {
 
     async function loadMemory() {
       if (!memoryId) {
-        setErrorMessage("Missing memory id.");
+        setErrorMessage("Missing chapter id.");
         setIsLoading(false);
         return;
       }
@@ -207,7 +232,7 @@ export default function MemoryDetailScreen() {
         }
 
         if (!nextMemory) {
-          setErrorMessage("That memory could not be found.");
+          setErrorMessage("That chapter could not be found.");
           setMemory(null);
           return;
         }
@@ -232,7 +257,7 @@ export default function MemoryDetailScreen() {
         })();
       } catch (error) {
         if (isActive) {
-          setErrorMessage(error instanceof Error ? error.message : "Could not load memory.");
+          setErrorMessage(error instanceof Error ? error.message : "Could not load the chapter.");
         }
       } finally {
         if (isActive) {
@@ -268,7 +293,7 @@ export default function MemoryDetailScreen() {
     const trimmedText = text.trim();
 
     if (!trimmedPrompt || !trimmedText || !dateKey) {
-      setErrorMessage("Date, prompt, and memory text are all required.");
+      setErrorMessage("Date, prompt, and chapter text are all required.");
       setSaveMessage("");
       return;
     }
@@ -304,7 +329,7 @@ export default function MemoryDetailScreen() {
     }
 
     Alert.alert(
-      "Delete this memory?",
+      "Delete this chapter?",
       "This removes the memory and its photo links, but it will not delete original photos from your NAS or phone.",
       [
         {
@@ -325,7 +350,7 @@ export default function MemoryDetailScreen() {
                 router.replace("/(tabs)/timeline");
               } catch (error) {
                 setErrorMessage(
-                  error instanceof Error ? error.message : "Could not delete the memory."
+                  error instanceof Error ? error.message : "Could not delete the chapter."
                 );
               } finally {
                 setIsDeleting(false);
@@ -341,7 +366,7 @@ export default function MemoryDetailScreen() {
     return (
       <SafeAreaView style={styles.centered}>
         <ActivityIndicator color={theme.colors.accent} />
-        <Text style={styles.stateText}>Loading memory...</Text>
+        <Text style={styles.stateText}>Loading chapter...</Text>
       </SafeAreaView>
     );
   }
@@ -357,7 +382,7 @@ export default function MemoryDetailScreen() {
           </Pressable>
           <Text style={styles.eyebrow}>Memory Detail</Text>
           <Text style={styles.title}>
-            {memory ? formatLongDate(memory.date) : "Memory not found"}
+            {memory ? formatLongDate(memory.date) : "Chapter not found"}
           </Text>
           <Text style={styles.subtitle}>
             Edit the words, keep the references tidy, and leave the original photos where they belong.
@@ -377,7 +402,7 @@ export default function MemoryDetailScreen() {
 
         {!memory ? (
           <View style={styles.sectionCard}>
-            <Text style={styles.stateText}>That memory is no longer available.</Text>
+            <Text style={styles.stateText}>That chapter is no longer available.</Text>
           </View>
         ) : (
           <>
@@ -389,24 +414,24 @@ export default function MemoryDetailScreen() {
                   <DatePickerField
                     value={dateKey}
                     onChange={setDateKey}
-                    helperText="Update the day this memory belongs to."
+                    helperText="Update the day this chapter belongs to."
                   />
                   <View style={styles.fieldBlock}>
                     <Text style={styles.fieldLabel}>Prompt</Text>
                     <TextInput
                       value={prompt}
                       onChangeText={setPrompt}
-                      placeholder="What prompted this memory?"
+                      placeholder="What prompted this chapter?"
                       placeholderTextColor={theme.colors.textSoft}
                       style={styles.singleLineInput}
                     />
                   </View>
                   <View style={styles.fieldBlock}>
-                    <Text style={styles.fieldLabel}>Memory text</Text>
+                    <Text style={styles.fieldLabel}>Chapter text</Text>
                     <TextInput
                       value={text}
                       onChangeText={setText}
-                      placeholder="Write the memory itself..."
+                      placeholder="Write the chapter itself..."
                       placeholderTextColor={theme.colors.textSoft}
                       multiline
                       textAlignVertical="top"
@@ -418,7 +443,7 @@ export default function MemoryDetailScreen() {
                     <TextInput
                       value={tagsInput}
                       onChangeText={setTagsInput}
-                      placeholder="family, summer, silly"
+                      placeholder="summer, funny, project"
                       placeholderTextColor={theme.colors.textSoft}
                       style={styles.singleLineInput}
                     />
@@ -452,7 +477,7 @@ export default function MemoryDetailScreen() {
               editable={isEditing}
               title="Collections"
               helperText="Use collections for bigger chapters without turning every memory into a heavy form."
-              emptyText="This memory is not part of a larger collection yet."
+              emptyText="This chapter is not part of a larger collection yet."
               selectedCollectionIds={selectedCollectionIds}
               onChange={setSelectedCollectionIds}
             />
@@ -462,7 +487,7 @@ export default function MemoryDetailScreen() {
                 <View style={styles.sectionHeaderCopy}>
                   <Text style={styles.sectionTitle}>Attachments</Text>
                   <Text style={styles.sectionHint}>
-                    Removing a photo here only removes the reference from this memory.
+                    Removing a photo here only removes the reference from this chapter.
                   </Text>
                 </View>
                 {isEditing ? (
@@ -473,7 +498,7 @@ export default function MemoryDetailScreen() {
                       router.push("/photo-picker");
                     }}
                   >
-                    <Text style={styles.secondaryButtonText}>Add Photos</Text>
+                    <Text style={styles.secondaryButtonText}>Add Media</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -496,7 +521,7 @@ export default function MemoryDetailScreen() {
                   ))}
                 </View>
               ) : (
-                <Text style={styles.emptyText}>No photo references attached to this memory.</Text>
+                <Text style={styles.emptyText}>No media references attached to this chapter.</Text>
               )}
             </View>
 
@@ -532,7 +557,7 @@ export default function MemoryDetailScreen() {
                   }}
                   disabled={isDeleting}
                 >
-                  <Text style={styles.primaryActionText}>Edit Memory</Text>
+                  <Text style={styles.primaryActionText}>Edit Chapter</Text>
                 </Pressable>
               )}
 
@@ -544,11 +569,11 @@ export default function MemoryDetailScreen() {
                 {isDeleting ? (
                   <ActivityIndicator color="#B44D47" />
                 ) : (
-                  <Text style={styles.deleteActionText}>Delete Memory</Text>
+                  <Text style={styles.deleteActionText}>Delete Chapter</Text>
                 )}
               </Pressable>
               <Text style={styles.deleteHint}>
-                This deletes the memory text, tags, and photo references only. Original NAS or phone photos stay untouched.
+                This deletes the chapter text, tags, and photo references only. Original NAS or phone photos stay untouched.
               </Text>
             </View>
           </>
@@ -733,6 +758,23 @@ const styles = StyleSheet.create({
     height: 60,
     width: 60,
   },
+  attachmentPreviewFrame: {
+    position: "relative",
+  },
+  attachmentBadge: {
+    backgroundColor: "rgba(50, 34, 24, 0.82)",
+    borderRadius: theme.radii.pill,
+    bottom: 4,
+    left: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    position: "absolute",
+  },
+  attachmentBadgeText: {
+    color: "#FFF8F1",
+    fontSize: 9,
+    fontWeight: "700",
+  },
   attachmentPlaceholder: {
     alignItems: "center",
     backgroundColor: theme.colors.surface,
@@ -746,6 +788,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     textAlign: "center",
+  },
+  attachmentPlaceholderMeta: {
+    color: theme.colors.textMuted,
+    fontSize: 9,
+    marginTop: 4,
   },
   attachmentCopy: {
     flex: 1,

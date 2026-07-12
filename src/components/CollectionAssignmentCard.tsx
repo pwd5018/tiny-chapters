@@ -68,7 +68,7 @@ function getStarterTemplates(): StarterTemplate[] {
       title: "Holiday",
       kind: "holiday",
       suggestedName: `Christmas ${year}`,
-      blurb: "A recurring family holiday or seasonal tradition.",
+      blurb: "A recurring holiday, tradition, or seasonal ritual.",
     },
     {
       title: "Kid Chapter",
@@ -276,7 +276,7 @@ export function CollectionAssignmentCard({
                           <Text style={styles.optionTitle}>{collection.title}</Text>
                           <Text style={styles.optionMeta}>
                             {collection.memoryCount}{" "}
-                            {collection.memoryCount === 1 ? "memory" : "memories"}
+                            {collection.memoryCount === 1 ? "entry" : "entries"}
                           </Text>
                         </View>
                         <Text style={styles.optionCheck}>{selected ? "Selected" : "Select"}</Text>
@@ -287,7 +287,7 @@ export function CollectionAssignmentCard({
               ) : (
                 <View style={styles.stateCard}>
                   <Text style={styles.stateText}>
-                    No collections yet. Create one here when a memory belongs to a bigger chapter.
+                    No collections yet. Create one here when an entry belongs to a bigger chapter.
                   </Text>
                 </View>
               )}
@@ -297,7 +297,7 @@ export function CollectionAssignmentCard({
                   <View style={styles.templateHeader}>
                     <Text style={styles.templateTitle}>Starter templates</Text>
                     <Text style={styles.templateHint}>
-                      Start with a familiar chapter shape, then rename it however you want.
+                      Start with a familiar chapter shape, then rename it to fit your life.
                     </Text>
                   </View>
                   <View style={styles.templateList}>

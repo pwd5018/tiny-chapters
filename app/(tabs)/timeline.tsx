@@ -67,14 +67,14 @@ function CollectionCard({ collection }: { collection: MemoryCollection }) {
         </View>
         <View style={styles.collectionCountPill}>
           <Text style={styles.collectionCountText}>
-            {collection.memoryCount} {collection.memoryCount === 1 ? "memory" : "memories"}
+            {collection.memoryCount} {collection.memoryCount === 1 ? "entry" : "entries"}
           </Text>
         </View>
       </View>
       <Text style={styles.collectionMeta}>{formatCollectionDateRange(collection)}</Text>
       <Text style={styles.collectionDescription}>
         {collection.description?.trim() ||
-          "Open this chapter to browse the memories gathered into this longer stretch of family life."}
+          "Open this chapter to browse the entries gathered into this longer stretch of life."}
       </Text>
       <View style={styles.collectionFooter}>
         <View style={styles.collectionFooterRule} />
@@ -111,7 +111,7 @@ export default function TimelineScreen() {
       setStats(nextStats);
       setCollections(nextCollections);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not load memories.");
+      setErrorMessage(error instanceof Error ? error.message : "Could not load chapters.");
     } finally {
       setIsLoading(false);
     }
@@ -129,7 +129,7 @@ export default function TimelineScreen() {
         <ScreenHero
           eyebrow="Moments"
           title="A warmer archive of the moments you have already kept."
-          subtitle="Stats, recent saves, and the running story of your family life live here instead of crowding the Today screen."
+          subtitle="Stats, recent saves, and the running story of your life live here instead of crowding the Today screen."
           orbLargeColor="#E6D7C4"
           orbSmallColor="#DCC7B2"
         />
@@ -139,7 +139,7 @@ export default function TimelineScreen() {
         <FadeInView delay={80}>
           <View style={styles.stateCard}>
             <ActivityIndicator color={theme.colors.accent} />
-            <Text style={styles.stateText}>Loading memories...</Text>
+            <Text style={styles.stateText}>Loading chapters...</Text>
           </View>
         </FadeInView>
       ) : errorMessage ? (
@@ -158,7 +158,7 @@ export default function TimelineScreen() {
                   <Text style={styles.summaryTitle}>A quick pulse on your archive</Text>
                 </View>
                 <Text style={styles.summaryNote}>
-                  Small, steady memories add up.
+                  Small, steady chapters add up.
                 </Text>
               </View>
 
@@ -184,7 +184,7 @@ export default function TimelineScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionLabel}>Collections</Text>
               <Text style={styles.sectionHint}>
-                Larger chapters like trips, school years, holidays, and kid-specific seasons now have a home here.
+                Larger chapters like trips, school years, holidays, and personal seasons now have a home here.
               </Text>
             </View>
             {collections.length ? (
@@ -198,7 +198,7 @@ export default function TimelineScreen() {
             ) : (
               <View style={styles.stateCard}>
                 <Text style={styles.stateText}>
-                  No collections yet. The archive is ready for them whenever you start grouping memories into bigger chapters.
+                  No collections yet. The archive is ready for them whenever you start grouping entries into bigger chapters.
                 </Text>
               </View>
             )}
@@ -215,7 +215,7 @@ export default function TimelineScreen() {
             ))}
             {!memories.length ? (
               <View style={styles.stateCard}>
-                <Text style={styles.stateText}>No memories yet. Save one from Write.</Text>
+                <Text style={styles.stateText}>No chapters yet. Save one from Write.</Text>
               </View>
             ) : null}
           </View>

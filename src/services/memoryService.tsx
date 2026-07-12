@@ -17,7 +17,10 @@ import {
   getCachedDailyPrompt,
   setCachedDailyPrompt,
 } from "@/services/dailyPromptState";
-import { normalizeAttachedPhotoSyncStatus } from "@/services/photo/photoDurability";
+import {
+  normalizeAttachedMediaKind,
+  normalizeAttachedPhotoSyncStatus,
+} from "@/services/photo/photoDurability";
 import type {
   AttachedPhotoSyncStatus,
   CreateMemoryCollectionInput,
@@ -295,6 +298,7 @@ function mapMemoryRow(
     collections,
     attachedPhotos: photoRefs.map((photoRef) => ({
       photoId: photoRef.photo_id,
+      mediaKind: normalizeAttachedMediaKind(photoRef.media_kind, "photo"),
       source: photoRef.source,
       path: photoRef.path,
       attachedAt: photoRef.attached_at,
@@ -304,7 +308,11 @@ function mapMemoryRow(
       fileSize: photoRef.file_size ?? undefined,
       width: photoRef.width ?? undefined,
       height: photoRef.height ?? undefined,
+      durationMs: photoRef.duration_ms ?? undefined,
+      mimeType: photoRef.mime_type ?? undefined,
       localUri: photoRef.local_uri ?? undefined,
+      posterPath: photoRef.poster_path ?? undefined,
+      posterLocalUri: photoRef.poster_local_uri ?? undefined,
       syncStatus: normalizeAttachedPhotoSyncStatus(
         photoRef.sync_status,
         photoRef.source === "local" ? "pending_nas_match" : "linked_to_nas"
@@ -335,7 +343,7 @@ async function fetchPhotoRefsByMemoryIds(memoryIds: string[]) {
   const { data, error } = await supabase
     .from("memory_photo_refs")
     .select(
-      "id, memory_id, user_id, photo_id, source, path, content_hash, attached_at, filename, taken_at, file_size, width, height, local_uri, sync_status"
+      "id, memory_id, user_id, photo_id, media_kind, source, path, content_hash, attached_at, filename, taken_at, file_size, width, height, duration_ms, mime_type, local_uri, poster_path, poster_local_uri, sync_status"
     )
     .eq("user_id", userId)
     .in("memory_id", memoryIds)
@@ -553,6 +561,7 @@ async function insertPhotoRefs(
       memory_id: memoryId,
       user_id: userId,
       photo_id: photo.photoId,
+      media_kind: photo.mediaKind ?? "photo",
       source: photo.source,
       path: photo.path,
       content_hash: photo.contentHash ?? null,
@@ -561,7 +570,11 @@ async function insertPhotoRefs(
       file_size: photo.fileSize ?? null,
       width: photo.width ?? null,
       height: photo.height ?? null,
+      duration_ms: photo.durationMs ?? null,
+      mime_type: photo.mimeType ?? null,
       local_uri: photo.localUri ?? null,
+      poster_path: photo.posterPath ?? null,
+      poster_local_uri: photo.posterLocalUri ?? null,
       sync_status: photo.syncStatus,
       attached_at: photo.attachedAt,
     }))

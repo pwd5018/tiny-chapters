@@ -1,6 +1,6 @@
 # Tiny Chapters
 
-Tiny Chapters is a private mobile memory capsule for saving small daily family moments. The app is Android-first, built with Expo Router and TypeScript, and is being structured so the storage layer can evolve without forcing major screen rewrites.
+Tiny Chapters is a private mobile life-memory app for saving durable personal records across family memories, diary-style entries, reflections, ideas, and other meaningful small chapters of lived experience. The app is Android-first, built with Expo Router and TypeScript, and is being structured so the storage and service layers can evolve without forcing major screen rewrites.
 
 ## Project Context Docs
 
@@ -18,13 +18,13 @@ These files are the canonical startup context and should be updated after each c
 
 Current state:
 - Expo mobile shell with tab navigation
-- Supabase-backed auth and memory persistence
+- Supabase-backed auth and saved-entry persistence
 - Mock photo provider for same-day photo references
 - Camera capture and phone photo attach for temporary local refs
 - NAS photo picker screen with real date picker, backend search, folder browsing, paging, multi-select, and lightweight preview
 - Memory detail screen with edit and delete flows
-- Timeline and Search cards open a full memory detail route
-- Existing memories can add or remove photo references without uploading photos to Supabase
+- Timeline and Search cards open a full saved-entry detail route
+- Existing saved entries can add or remove photo references without uploading photos to Supabase
 - Local reminder scheduling with `expo-notifications` and AsyncStorage-backed settings
 - Hidden Developer Mode with a diagnostics screen for Supabase, NAS, relink, notification, and environment troubleshooting
 - Installed Expo Development Build workflow for real device testing
@@ -32,18 +32,23 @@ Current state:
 - Centralized permission helpers for notifications, camera, and photo-library access
 - iOS readiness diagnostics for bundle id, permission states, Photo API URL, and future NAS warning checks
 - Lighter Today dashboard with real On This Day resurfacing and daily prompt guidance
-- Dedicated `write` route as the single primary memory-composition path
+- Dedicated `write` route as the single primary writing path
 - Moments tab as the home for archive browsing and stats
+- Collection support for grouping entries into larger chapters such as vacations, school years, holidays, and kid-specific chapters
+- Search filters that now include collection membership alongside text, tags, dates, guided context, and photo durability
+- Save-first export with JSON and Markdown archive output plus collection membership and print-readiness metadata
+- Additive media-generalization groundwork inside the existing `memory_photo_refs` seam, including local video attachments and generalized attachment metadata without changing the current storage names yet
 - Redesigned visual baseline across Today, Moments, Search, and Write with calmer hierarchy and warmer editorial cards/forms
 - Today, Moments, Search, and Settings screens working against service abstractions
 - Native Android project available for emulator/device work when needed
 
 Not implemented yet:
 - Full iPhone validation, generated `ios/` project work, or TestFlight readiness
-- Guided AI memory questions
-- AI cleanup
-- Export flow
-- Device photo library browsing as a primary archive source
+- Broader life-memory domain generalization beyond the current `memory` implementation naming
+- NAS-backed video indexing, richer media previews, and a fuller generalized media-reference model beyond the current groundwork
+- Confirmed versus inferred metadata seams
+- Provider-style integration boundaries for the separate Personal Assistant app
+- Assistant-proposed Tiny Chapters drafts
 
 ## Developer Quick Start
 
@@ -144,7 +149,7 @@ npm run start:clear
 - `src/services/photo/photoService.ts` selects mock or NAS-backed photo access based on env config and exposes date, search, and folder browsing operations
 - `src/services/photo/photoRelinkService.ts` holds the placeholder relink seam for future NAS matching
 - `app/photo-picker.tsx` provides the dedicated NAS selection flow for durable photo refs, with paged date, search, and folder modes
-- `app/memory/[id].tsx` handles memory detail, edit, delete, and attachment management
+- `app/memory/[id].tsx` handles chapter detail, edit, delete, and attachment management
 - `app/write.tsx` and `src/features/write/WriteMemoryScreen.tsx` own the single focused writing/composition flow
 - `src/features/dashboard/` owns Today card composition and rendering
 - `src/components/ScreenHero.tsx` provides the shared redesigned hero pattern used across the main non-Today screens
@@ -155,6 +160,8 @@ npm run start:clear
 - `src/types/` defines domain models for memories and photos
 
 The screens talk to services, and the services hide how data is actually stored. That keeps the UI steady when we later swap mock storage for Supabase or add a real NAS-backed photo index.
+
+The current implementation still uses `memory` as the primary storage and service term. The broader product direction is documented in [docs/LIFE_MEMORY_VISION_AND_INTEGRATION_PLAN.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\LIFE_MEMORY_VISION_AND_INTEGRATION_PLAN.md).
 
 Current IA baseline:
 
@@ -196,17 +203,17 @@ That SQL now also:
 ## Why photos are stored as references instead of copied
 
 Tiny Chapters is headed toward a model where:
-- memories live in Supabase
+- saved chapters live in Supabase
 - original photos stay on the NAS
 
-Instead of copying image files into app storage or the database, memories store stable references such as:
+Instead of copying image files into app storage or the database, saved chapters store stable references such as:
 - `photoId`
 - `source`
 - `path`
 - `contentHash` when available
 - `syncStatus` so the app can tell whether a photo is already durable on the NAS
 
-Editing a memory can add or remove those references later, but it still does not upload thumbnails or original photos into Supabase.
+Editing a saved chapter can add or remove those references later, but it still does not upload thumbnails or original photos into Supabase.
 
 This keeps the NAS as the source of truth, avoids duplicate photo storage, and makes later re-indexing or export cleaner.
 
@@ -238,19 +245,19 @@ For NAS photos:
 Tiny Chapters now also retries pending NAS matches later:
 
 - on app startup when NAS mode is active
-- when a memory detail screen opens
+- when a chapter detail screen opens
 - when you tap `Retry NAS Photo Matching` in Settings
 
 The phone-photo durability flow is:
 
 - take or attach a phone photo
-- save the memory with a temporary local reference
+- save the chapter with a temporary local reference
 - let the phone back up to the NAS
 - let the Photo API scan index that photo
 - Tiny Chapters relinks the memory to the NAS photo id
-- the memory becomes durable as `Linked to NAS archive`
+- the chapter becomes durable as `Linked to NAS archive`
 
-Tiny Chapters also supports local memory reminders on Android:
+Tiny Chapters also supports local writing reminders on Android:
 
 - `Daily`
 - `Weekdays`
@@ -284,7 +291,7 @@ The current photo layer now supports:
 - `GET /folder-photos?path=&limit=&offset=`
 - `GET /photos/:photoId`
 
-That API returns indexed NAS photo metadata, stable IDs, and optional content hashes while the app continues storing only references on each memory.
+That API returns indexed NAS photo metadata, stable IDs, and optional content hashes while the app continues storing only references on each saved chapter.
 
 There is now also a local service foundation in:
 
@@ -355,8 +362,8 @@ Future NAS picker improvements:
 
 1. Open Today to see the date, daily prompt guidance, and On This Day resurfacing.
 2. Start writing from the Today dashboard prompt card.
-3. Use the dedicated Write screen for the actual memory composition flow.
-4. Add photos only when they help the memory, using the collapsed photo section in Write.
+3. Use the dedicated Write screen for the actual chapter composition flow.
+4. Add photos only when they help the chapter, using the collapsed photo section in Write.
 5. Use Moments for archive browsing and stats.
 6. Use Search when you already have something specific in mind.
 
@@ -368,41 +375,41 @@ Future NAS picker improvements:
 4. Open the Write flow from the Today dashboard.
 5. Expand the Photos section and tap `Take Photo` or `Phone Photos`.
 6. Grant permission when prompted.
-7. Save a memory with that attachment.
-8. Open Moments and confirm the memory shows attached photo status, including waiting for NAS backup for local refs.
+7. Save a chapter with that attachment.
+8. Open Moments and confirm the chapter shows attached photo status, including waiting for NAS backup for local refs.
 
 To test immediate NAS relink, use a phone photo that has already been backed up and indexed by the Photo API, then attach it from the phone and confirm it saves as `Linked to NAS archive` instead of waiting.
 
-## Memory detail edit and delete test
+## Chapter detail edit and delete test
 
-1. Save a memory from Write with at least one attachment.
+1. Save a chapter from Write with at least one attachment.
 2. Open it from Moments and confirm the detail route shows the date, prompt, text, tags, thumbnails, and sync labels.
 3. Tap `Edit Memory`, change the date, prompt, text, and comma-separated tags, then save.
-4. Re-open the same memory from Search and confirm those edits are reflected there too.
+4. Re-open the same chapter from Search and confirm those edits are reflected there too.
 5. In edit mode, tap `Add Photos`, select more NAS photos, tap `Done`, and save.
 6. Remove one attached photo reference, save again, and confirm the original NAS file still exists outside the app.
-7. Tap `Delete Memory`, confirm the warning, and verify the app returns to Moments with the memory gone.
-8. Search for the deleted memory text and confirm it no longer appears.
+7. Tap `Delete Chapter`, confirm the warning, and verify the app returns to Moments with the chapter gone.
+8. Search for the deleted chapter text and confirm it no longer appears.
 
 ## Pending NAS relink test
 
 1. Attach a phone photo that has not been indexed by the NAS Photo API yet.
-2. Save the memory and confirm it shows `Waiting for NAS backup`.
+2. Save the chapter and confirm it shows `Waiting for NAS backup`.
 3. Let the phone finish backing up that photo to the NAS.
 4. Run or wait for the Photo API scan so the image is indexed.
 5. Reopen the app or tap `Retry NAS Photo Matching` in Settings.
-6. Reopen the memory and confirm the status becomes `Linked to NAS archive`.
-7. Confirm the memory still stores references only and no photo was uploaded to Supabase.
+6. Reopen the chapter and confirm the status becomes `Linked to NAS archive`.
+7. Confirm the chapter still stores references only and no photo was uploaded to Supabase.
 
 ## Android reminder test
 
-1. Open Settings and go to `Memory reminders`.
+1. Open Settings and go to `Writing reminders`.
 2. Tap `Allow Notifications` and grant Android permission.
 3. Enable reminders, choose a cadence, time, and prompt style, then tap `Save Reminder Settings`.
 4. Force close and reopen the app, then confirm the reminder settings still appear.
 5. Tap `Test Notification` and confirm a local notification appears after about 5 seconds.
 6. Tap the notification and confirm Tiny Chapters opens normally and lands on Today.
-7. Pick a near-future reminder time, wait for the scheduled reminder, and confirm memory creation/edit/delete still work afterward.
+7. Pick a near-future reminder time, wait for the scheduled reminder, and confirm chapter creation/edit/delete still work afterward.
 
 Android notes:
 

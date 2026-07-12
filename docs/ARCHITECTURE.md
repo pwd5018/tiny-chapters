@@ -11,11 +11,12 @@ Mobile App -> Photo API -> Windows-accessible NAS Share
 
 Notes:
 
-- Supabase stores users, memories, tags-as-array data, and photo reference metadata.
+- Supabase stores users, memories, tags-as-array data, guided context, collection membership, and attachment metadata through the still-photo-named `memory_photo_refs` table.
 - Supabase does not store original photos.
 - Supabase does not currently store thumbnails.
 - The Photo API is a separate local service under `photo-api/`.
 - The primary development runtime is now an installed Expo Development Build, not Expo Go.
+- The current implementation still uses `memory` as the storage and service term, but the product direction is broadening toward a more general life-memory platform.
 
 ## Development runtime model
 
@@ -61,6 +62,8 @@ Why this changed:
   Repository-style boundary for CRUD, search, daily prompt selection, resurfacing queries, `memory_photo_refs` persistence, and the first collection/grouping seam. Search now supports model-driven filtering over text, tags, date range, guided context, and photo durability state. Daily prompt selection is now the service seam that can use AI plus same-day prompt history without pushing that logic into screens. Phase 16 collection work should extend this service instead of teaching screens to assemble collection membership directly from Supabase rows. Screens should not query Supabase directly for memory data.
   Current collection groundwork inside this seam now includes collection CRUD, memory-to-collection membership writes, and grouped reads such as loading the memories that belong to a collection.
   Search now also understands collection membership as a structured filter rather than treating larger chapters as text-only decoration.
+  Phase 18 groundwork now keeps additive media metadata attached to those refs, including `mediaKind`, optional duration, mime type, and optional poster references, while leaving the current storage names stable.
+  Future domain expansion should continue to build around this seam rather than encouraging direct cross-app reads of Supabase tables. If Tiny Chapters later becomes a provider for the Personal Assistant, the provider layer should still sit above the repository model rather than bypass it.
 - `photoService`
   Selects the active provider (`mock` or `nas`) and exposes shared operations such as date lookup, search, folders, connection tests, and match requests.
 - `nasPhotoProvider`
@@ -149,6 +152,7 @@ Current migrations:
 - `supabase/migrations/20260619_phase2_memories.sql`
 - `supabase/migrations/20260621_phase38_photo_durability.sql`
 - `supabase/migrations/20260703_phase10_guided_memory_context.sql`
+- `supabase/migrations/20260712_phase18_media_generalization.sql`
 
 Tables:
 
@@ -157,7 +161,7 @@ Tables:
 - `memories`
   `id`, `user_id`, `date`, `prompt`, `text`, `tags text[]`, `guided_context jsonb`, `created_at`, `updated_at`.
 - `memory_photo_refs`
-  `memory_id`, `user_id`, `photo_id`, `source`, `path`, `content_hash`, `attached_at`, `filename`, `taken_at`, `file_size`, `width`, `height`, `local_uri`, `sync_status`.
+  `memory_id`, `user_id`, `photo_id`, `media_kind`, `source`, `path`, `content_hash`, `attached_at`, `filename`, `taken_at`, `file_size`, `width`, `height`, `duration_ms`, `mime_type`, `local_uri`, `poster_path`, `poster_local_uri`, `sync_status`.
 
 Phase 16 direction:
 
@@ -171,6 +175,33 @@ Tags strategy:
 - There is no separate `tags` table yet.
 - Search is currently model-driven but still app-side over loaded memories. It supports free text plus structured filters for tags, date range, guided context presence, photo presence, and attachment durability metadata.
 
+### Current domain limitation
+
+The current model is still explicitly memory-first and still keeps legacy photo-shaped names even though the ref payload is beginning to generalize:
+
+- `memories` is the primary durable record table
+- `memory_photo_refs` is still photo-only in naming even though the row shape now supports broader media metadata
+- tags are still inline `text[]`
+- guided context is stored inline as `guided_context jsonb`
+
+That is acceptable for the current app, but it is not the final target shape for a broader life-memory platform.
+
+### Recommended domain evolution
+
+The current `memory` model should evolve additively into a broader chapter-style domain rather than being replaced abruptly.
+
+Recommended direction:
+
+- keep `memories` as the current durable primary-record table until a rename is clearly justified
+- add side tables for confirmed metadata, inferred metadata, relationships, drafts, embeddings, and access logs
+- generalize `memory_photo_refs` into a broader media-reference seam later so video and voice can fit naturally
+- preserve the difference between user-authored truth, approved derived metadata, unconfirmed inference, and temporary context
+
+Future integration rule:
+
+- another app, including the Personal Assistant, should not read these tables directly
+- Tiny Chapters should later expose controlled provider services or APIs above this model
+
 RLS expectations:
 
 - `profiles`, `memories`, and `memory_photo_refs` all have RLS enabled.
@@ -182,6 +213,7 @@ RLS expectations:
 `AttachedPhotoRef` fields:
 
 - `photoId`
+- `mediaKind?`
 - `source`
 - `path`
 - `attachedAt`
@@ -191,7 +223,11 @@ RLS expectations:
 - `fileSize?`
 - `width?`
 - `height?`
+- `durationMs?`
+- `mimeType?`
 - `localUri?`
+- `posterPath?`
+- `posterLocalUri?`
 - `syncStatus`
 
 Current `syncStatus` values:
@@ -205,16 +241,54 @@ Current `syncStatus` values:
 Practical meaning today:
 
 - NAS picker attachments save as durable NAS references.
-- Phone-attached or camera-captured refs are metadata-only local refs first.
+- Phone-attached or camera-captured photos save as metadata-only local refs first.
+- Device-library videos now also save as metadata-first local refs through the same seam.
 - Local refs try immediate relink and otherwise remain `pending_nas_match`.
-- Relink can later promote them to `linked_to_nas`.
+- Photo relink can later promote matching photo refs to `linked_to_nas`.
+- Video refs currently remain local or pending because NAS video indexing and matching are not implemented yet.
 - `localUri` remains temporary and device-specific for local refs only. Once a ref is promoted to `linked_to_nas`, the app should prefer the NAS-backed preview path instead of continuing to depend on the temporary device URI.
+- Non-photo refs can now also carry optional poster metadata, but poster generation is still future work.
 
 Phase 11 result:
 
 - Device-library photos are now a first-class source without breaking the existing local-to-NAS relink behavior.
 - Browsing source and relink capability are now separate concerns.
 - Saved-memory rendering now prefers NAS-backed preview paths once a local ref has been promoted to `linked_to_nas`.
+
+### Future media direction
+
+The current attachment model is intentionally photo-specific today, but the broader product should support:
+
+- photos
+- video
+- later voice-note attachments
+
+Recommendation:
+
+- treat video support as part of a broader media-generalization phase
+- keep original binaries outside Supabase
+- preserve durable references, attachment metadata, and relink/durability state
+- extend export and future retrieval contracts around generalized media rather than special-casing video as a one-off
+
+Current repo status:
+
+- local device-library video refs are now accepted through the shared picker
+- generalized media metadata is persisted additively through `memory_photo_refs`
+- saved chapter surfaces now show non-photo attachments with media-aware fallback cards and duration cues instead of assuming every attachment should resolve to an image thumbnail
+- archive export now summarizes media mix and preview coverage in addition to the older photo-oriented durability counters
+- current NAS provider, index, matching, and preview enrichment remain photo-backed
+
+## Future provider boundary
+
+Tiny Chapters should be designed as a standalone app that can later act as a secure life-memory provider for trusted clients such as the Personal Assistant.
+
+Principles:
+
+- Tiny Chapters owns durable life records and their retention rules.
+- Consumers should use application services or APIs, not direct table reads.
+- Retrieved results should preserve source identity, trust level, permissions, and provenance.
+- Assistant-proposed content should enter Tiny Chapters as drafts pending approval rather than as silently committed truth.
+- Temporary assistant context and cached external lookup results should stay outside Tiny Chapters unless the user intentionally promotes them.
 
 ## NAS Photo API
 

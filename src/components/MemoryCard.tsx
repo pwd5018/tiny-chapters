@@ -3,13 +3,22 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import {
+  formatAttachedMediaDuration,
+  getAttachedPhotoMediaKindLabel,
   getAttachedPhotoPreviewUri,
   summarizeAttachedPhotoStatuses,
 } from "@/services/photo/photoDurability";
 import { getPhotoById, getPhotoImageSource } from "@/services/photo/photoService";
 import { theme } from "@/theme/theme";
-import type { Memory } from "@/types/memory";
-import type { PhotoAsset } from "@/types/photo";
+import type { AttachedPhotoRef, Memory } from "@/types/memory";
+
+type AttachmentPreviewItem = {
+  id: string;
+  kind: AttachedPhotoRef["mediaKind"];
+  thumbnailUrl: string | null;
+  viewUrl?: string;
+  durationMs?: number;
+};
 
 function formatDisplayDate(isoDate: string) {
   return new Date(isoDate).toLocaleDateString(undefined, {
@@ -31,9 +40,7 @@ function getMemoryExcerpt(text: string) {
 
 export function MemoryCard({ memory }: { memory: Memory }) {
   const router = useRouter();
-  const [photoAssets, setPhotoAssets] = useState<
-    Array<PhotoAsset | { id: string; thumbnailUrl: string }>
-  >([]);
+  const [previewItems, setPreviewItems] = useState<AttachmentPreviewItem[]>([]);
   const [failedPreviewIds, setFailedPreviewIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -43,24 +50,49 @@ export function MemoryCard({ memory }: { memory: Memory }) {
       const previews = await Promise.all(
         memory.attachedPhotos.slice(0, 3).map(async (photoRef) => {
           const localPreviewUri = getAttachedPhotoPreviewUri(photoRef);
+          const mediaKind = photoRef.mediaKind ?? "photo";
 
           if (localPreviewUri) {
             return {
               id: photoRef.photoId,
+              kind: mediaKind,
               thumbnailUrl: localPreviewUri,
+              durationMs: photoRef.durationMs,
             };
           }
 
-          return getPhotoById(photoRef.photoId);
+          if (mediaKind !== "photo") {
+            return {
+              id: photoRef.photoId,
+              kind: mediaKind,
+              thumbnailUrl: null,
+              durationMs: photoRef.durationMs,
+            };
+          }
+
+          const asset = await getPhotoById(photoRef.photoId);
+
+          if (!asset) {
+            return {
+              id: photoRef.photoId,
+              kind: mediaKind,
+              thumbnailUrl: null,
+              durationMs: photoRef.durationMs,
+            };
+          }
+
+          return {
+            id: asset.id,
+            kind: mediaKind,
+            thumbnailUrl: asset.thumbnailUrl,
+            viewUrl: asset.viewUrl,
+            durationMs: photoRef.durationMs,
+          };
         })
       );
 
       if (isActive) {
-        setPhotoAssets(
-          previews.filter(
-            (photo): photo is PhotoAsset | { id: string; thumbnailUrl: string } => photo !== null
-          )
-        );
+        setPreviewItems(previews);
       }
     }
 
@@ -84,7 +116,7 @@ export function MemoryCard({ memory }: { memory: Memory }) {
           {memory.attachedPhotos.length ? (
             <View style={styles.miniMetaPill}>
               <Text style={styles.miniMetaText}>
-                {memory.attachedPhotos.length} {memory.attachedPhotos.length === 1 ? "photo" : "photos"}
+                {memory.attachedPhotos.length} {memory.attachedPhotos.length === 1 ? "item" : "items"}
               </Text>
             </View>
           ) : null}
@@ -95,7 +127,7 @@ export function MemoryCard({ memory }: { memory: Memory }) {
       <Text style={styles.text}>{getMemoryExcerpt(memory.text)}</Text>
 
       <View style={styles.metaRow}>
-        <Text style={styles.metaEyebrow}>Saved moment</Text>
+        <Text style={styles.metaEyebrow}>Saved chapter</Text>
         {memory.attachedPhotos.length ? (
         <Text style={styles.photoStatusSummary}>
           {summarizeAttachedPhotoStatuses(memory.attachedPhotos)}
@@ -103,28 +135,54 @@ export function MemoryCard({ memory }: { memory: Memory }) {
         ) : null}
       </View>
 
-      {photoAssets.length ? (
+      {previewItems.length ? (
         <View style={styles.previewRow}>
-          {photoAssets.map((photo) => (
-            <Image
-              key={photo.id}
-              source={getPhotoImageSource(
-                "viewUrl" in photo && failedPreviewIds.includes(photo.id)
-                  ? photo.viewUrl
-                  : photo.thumbnailUrl
-              )}
-              style={styles.previewImage}
-              onError={() => {
-                if ("viewUrl" in photo && !failedPreviewIds.includes(photo.id)) {
-                  setFailedPreviewIds((current) => [...current, photo.id]);
-                }
-              }}
-            />
-          ))}
+          {previewItems.map((item) =>
+            item.thumbnailUrl ? (
+              <View key={item.id} style={styles.previewFrame}>
+                <Image
+                  source={getPhotoImageSource(
+                    item.viewUrl && failedPreviewIds.includes(item.id)
+                      ? item.viewUrl
+                      : item.thumbnailUrl
+                  )}
+                  style={styles.previewImage}
+                  onError={() => {
+                    if (item.viewUrl && !failedPreviewIds.includes(item.id)) {
+                      setFailedPreviewIds((current) => [...current, item.id]);
+                    }
+                  }}
+                />
+                {item.kind === "video" ? (
+                  <View style={styles.mediaBadge}>
+                    <Text style={styles.mediaBadgeText}>
+                      Video{item.durationMs ? ` ${formatAttachedMediaDuration(item.durationMs)}` : ""}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <View key={item.id} style={styles.mediaFallbackCard}>
+                <Text style={styles.mediaFallbackKind}>
+                  {item.kind === "video" ? "Video" : "Attachment"}
+                </Text>
+                <Text style={styles.mediaFallbackMeta}>
+                  {item.durationMs ? formatAttachedMediaDuration(item.durationMs) : "Saved with chapter"}
+                </Text>
+              </View>
+            )
+          )}
         </View>
       ) : memory.attachedPhotos.length ? (
         <View style={styles.previewFallback}>
-          <Text style={styles.previewFallbackText}>Photo previews unavailable</Text>
+          <Text style={styles.previewFallbackText}>
+            {memory.attachedPhotos.some((attachment) => (attachment.mediaKind ?? "photo") !== "photo")
+              ? `Attached ${getAttachedPhotoMediaKindLabel(
+                  memory.attachedPhotos.find((attachment) => (attachment.mediaKind ?? "photo") !== "photo") ??
+                    memory.attachedPhotos[0]!
+                ).toLowerCase()} preview unavailable`
+              : "Photo previews unavailable"}
+          </Text>
         </View>
       ) : null}
 
@@ -140,7 +198,7 @@ export function MemoryCard({ memory }: { memory: Memory }) {
 
       <View style={styles.footer}>
         <View style={styles.footerRule} />
-        <Text style={styles.footerText}>Open memory</Text>
+        <Text style={styles.footerText}>Open chapter</Text>
       </View>
     </Pressable>
   );
@@ -233,10 +291,49 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: theme.spacing.sm,
   },
+  previewFrame: {
+    position: "relative",
+  },
   previewImage: {
     borderRadius: theme.radii.md,
     height: 78,
     width: 78,
+  },
+  mediaBadge: {
+    backgroundColor: "rgba(50, 34, 24, 0.78)",
+    borderRadius: theme.radii.pill,
+    bottom: 6,
+    left: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    position: "absolute",
+  },
+  mediaBadgeText: {
+    color: "#FFF8F1",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  mediaFallbackCard: {
+    alignItems: "center",
+    backgroundColor: "#FFFCF8",
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.md,
+    borderWidth: 1,
+    height: 78,
+    justifyContent: "center",
+    paddingHorizontal: theme.spacing.sm,
+    width: 78,
+  },
+  mediaFallbackKind: {
+    color: theme.colors.textPrimary,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  mediaFallbackMeta: {
+    color: theme.colors.textMuted,
+    fontSize: 10,
+    marginTop: 4,
+    textAlign: "center",
   },
   previewFallback: {
     backgroundColor: "#FFFCF8",
