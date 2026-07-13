@@ -20,6 +20,21 @@ type PolishResult = {
   model: string;
 };
 
+type MetadataSuggestionField = "tag" | "person" | "place" | "project" | "topic";
+
+type MetadataSuggestionResult = {
+  suggestions: Array<{
+    field: MetadataSuggestionField;
+    value: string;
+    confidence: number;
+    matchedValue: string | null;
+  }>;
+  provider: AiProviderName;
+  model: string;
+};
+
+type MetadataSuggestionVocabulary = Record<MetadataSuggestionField, string[]>;
+
 export class AiGatewayError extends Error {
   statusCode: number;
 
@@ -93,6 +108,62 @@ function parsePolishedTextFromText(rawText: string) {
   }
 
   return polishedText;
+}
+
+function parseMetadataSuggestionsFromText(rawText: string) {
+  const parsed = JSON.parse(extractJsonBlock(rawText)) as Record<string, unknown>;
+  const allowedFields = new Set<MetadataSuggestionField>([
+    "tag",
+    "person",
+    "place",
+    "project",
+    "topic",
+  ]);
+
+  if (!Array.isArray(parsed.suggestions)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const suggestions: MetadataSuggestionResult["suggestions"] = [];
+
+  for (const candidate of parsed.suggestions) {
+    if (!candidate || typeof candidate !== "object") {
+      continue;
+    }
+
+    const record = candidate as Record<string, unknown>;
+    const field = typeof record.field === "string" ? record.field : "";
+    const value = typeof record.value === "string" ? record.value.trim() : "";
+    const matchedValue =
+      typeof record.matchedValue === "string" && record.matchedValue.trim()
+        ? record.matchedValue.trim()
+        : null;
+    const rawConfidence = typeof record.confidence === "number" ? record.confidence : 0;
+
+    if (!allowedFields.has(field as MetadataSuggestionField) || !value) {
+      continue;
+    }
+
+    const key = `${field}:${value.toLowerCase()}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    suggestions.push({
+      field: field as MetadataSuggestionField,
+      value,
+      matchedValue,
+      confidence: Math.max(0, Math.min(100, Math.round(rawConfidence))),
+    });
+
+    if (suggestions.length >= 12) {
+      break;
+    }
+  }
+
+  return suggestions;
 }
 
 function extractOpenAiResponsesText(payload: unknown) {
@@ -269,6 +340,34 @@ function createPolishPrompt(
     `Original answer: ${originalAnswer}`,
     `Current draft: ${composedText}`,
     `Follow-up answers: ${followUps.join(" | ") || "None"}`,
+  ].join("\n");
+}
+
+function createMetadataSuggestionsPrompt(
+  prompt: string,
+  text: string,
+  vocabulary: MetadataSuggestionVocabulary
+) {
+  return [
+    "You are helping a private life-memory app organize one user-authored chapter.",
+    "Return only JSON.",
+    'Schema: {"suggestions":[{"field":"tag|person|place|project|topic","value":"...","confidence":0,"matchedValue":"... or null"}]}',
+    "Rules:",
+    "- Suggest only details directly supported by the chapter text or prompt. Do not guess.",
+    "- Return at most 12 useful suggestions total, and omit uncertain suggestions.",
+    "- confidence is an integer from 0 to 100.",
+    "- First try to match an existing value in the same field. If one is a clear match, copy it exactly into matchedValue and value.",
+    "- If no existing value is a clear match, set matchedValue to null and use a concise new value.",
+    "- Do not create a person merely from a generic role such as mom, dad, friend, or teacher unless the text names them.",
+    "- Do not turn dates, feelings, or complete sentences into tags.",
+    "- No preamble, no markdown, no explanation.",
+    `Prompt: ${prompt || "None"}`,
+    `Chapter text: ${text}`,
+    `Existing tags: ${vocabulary.tag.join(" | ") || "None"}`,
+    `Existing people: ${vocabulary.person.join(" | ") || "None"}`,
+    `Existing places: ${vocabulary.place.join(" | ") || "None"}`,
+    `Existing projects: ${vocabulary.project.join(" | ") || "None"}`,
+    `Existing topics: ${vocabulary.topic.join(" | ") || "None"}`,
   ].join("\n");
 }
 
@@ -501,6 +600,20 @@ export async function generateAiPolish(
 
   return {
     polishedText,
+    provider: result.provider,
+    model: result.model,
+  };
+}
+
+export async function generateAiMetadataSuggestions(
+  prompt: string,
+  text: string,
+  vocabulary: MetadataSuggestionVocabulary
+): Promise<MetadataSuggestionResult> {
+  const result = await callProvider(createMetadataSuggestionsPrompt(prompt, text, vocabulary));
+
+  return {
+    suggestions: parseMetadataSuggestionsFromText(result.text),
     provider: result.provider,
     model: result.model,
   };

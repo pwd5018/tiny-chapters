@@ -11,7 +11,7 @@ Mobile App -> Photo API -> Windows-accessible NAS Share
 
 Notes:
 
-- Supabase stores users, memories, tags-as-array data, guided context, collection membership, and attachment metadata through the still-photo-named `memory_photo_refs` table.
+- Supabase stores users, memories, tags-as-array data, guided context, confirmed metadata sidecars, collection membership, and attachment metadata through the still-photo-named `memory_photo_refs` table.
 - Supabase does not store original photos.
 - Supabase does not currently store thumbnails.
 - The Photo API is a separate local service under `photo-api/`.
@@ -63,6 +63,7 @@ Why this changed:
   Current collection groundwork inside this seam now includes collection CRUD, memory-to-collection membership writes, and grouped reads such as loading the memories that belong to a collection.
   Search now also understands collection membership as a structured filter rather than treating larger chapters as text-only decoration.
   Phase 18 groundwork now keeps additive media metadata attached to those refs, including `mediaKind`, optional duration, mime type, and optional poster references, while leaving the current storage names stable.
+  The first Phase 19 slice extends this seam with a `memory_metadata` sidecar for confirmed metadata and lifecycle state. Favorite flags, importance, people, places, projects, topics, and draft/finalized state now live in that sidecar instead of being implied from free-form text or AI output.
   Future domain expansion should continue to build around this seam rather than encouraging direct cross-app reads of Supabase tables. If Tiny Chapters later becomes a provider for the Personal Assistant, the provider layer should still sit above the repository model rather than bypass it.
 - `photoService`
   Selects the active provider (`mock` or `nas`) and exposes shared operations such as date lookup, search, folders, connection tests, and match requests.
@@ -153,6 +154,8 @@ Current migrations:
 - `supabase/migrations/20260621_phase38_photo_durability.sql`
 - `supabase/migrations/20260703_phase10_guided_memory_context.sql`
 - `supabase/migrations/20260712_phase18_media_generalization.sql`
+- `supabase/migrations/20260712_phase19_metadata_lifecycle_foundation.sql`
+- `supabase/migrations/20260712_phase19_inferred_metadata_suggestions.sql`
 
 Tables:
 
@@ -160,6 +163,10 @@ Tables:
   Per-user profile row keyed to `auth.users.id`. Present in the repo and auto-created via trigger.
 - `memories`
   `id`, `user_id`, `date`, `prompt`, `text`, `tags text[]`, `guided_context jsonb`, `created_at`, `updated_at`.
+- `memory_metadata`
+  `memory_id`, `user_id`, `lifecycle_status`, `is_favorite`, `importance`, `people text[]`, `places text[]`, `projects text[]`, `topics text[]`, `created_at`, `updated_at`.
+- `memory_metadata_suggestions`
+  Pending, approved, or rejected AI metadata proposals. Each row records a field, proposed value, optional confirmed-vocabulary match, confidence, provider/model provenance, and review timestamp. Pending suggestions never alter confirmed metadata.
 - `memory_photo_refs`
   `memory_id`, `user_id`, `photo_id`, `media_kind`, `source`, `path`, `content_hash`, `attached_at`, `filename`, `taken_at`, `file_size`, `width`, `height`, `duration_ms`, `mime_type`, `local_uri`, `poster_path`, `poster_local_uri`, `sync_status`.
 
@@ -197,6 +204,13 @@ Recommended direction:
 - generalize `memory_photo_refs` into a broader media-reference seam later so video and voice can fit naturally
 - preserve the difference between user-authored truth, approved derived metadata, unconfirmed inference, and temporary context
 
+Current Phase 19 foundation:
+
+- confirmed metadata now has its own sidecar seam in `memory_metadata`
+- this sidecar is user-confirmed only
+- inferred or AI-generated metadata still does not belong in the durable confirmed seam without explicit approval
+- `memory_metadata_suggestions` holds user-triggered metadata proposals separately and only copies an approved suggestion into `memories.tags` or `memory_metadata`
+
 Future integration rule:
 
 - another app, including the Personal Assistant, should not read these tables directly
@@ -204,7 +218,7 @@ Future integration rule:
 
 RLS expectations:
 
-- `profiles`, `memories`, and `memory_photo_refs` all have RLS enabled.
+- `profiles`, `memories`, `memory_metadata`, and `memory_photo_refs` all have RLS enabled.
 - Policies are owner-scoped with `auth.uid() = id` for profiles and `auth.uid() = user_id` for memory tables.
 - Deleting a memory cascades to `memory_photo_refs` but never deletes the original photo.
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
+import { getMemoryImportanceLabel, getMemoryLifecycleLabel } from "@/lib/memoryMetadata";
 import {
   formatAttachedMediaDuration,
   getAttachedPhotoMediaKindLabel,
@@ -128,6 +129,27 @@ export function MemoryCard({ memory }: { memory: Memory }) {
 
       <View style={styles.metaRow}>
         <Text style={styles.metaEyebrow}>Saved chapter</Text>
+        <View style={styles.metadataPills}>
+          {memory.metadata.isFavorite ? (
+            <View style={styles.metadataPill}>
+              <Text style={styles.metadataPillText}>Favorite</Text>
+            </View>
+          ) : null}
+          {memory.metadata.lifecycleStatus === "draft" ? (
+            <View style={styles.metadataPill}>
+              <Text style={styles.metadataPillText}>
+                {getMemoryLifecycleLabel(memory.metadata.lifecycleStatus)}
+              </Text>
+            </View>
+          ) : null}
+          {memory.metadata.importance ? (
+            <View style={styles.metadataPill}>
+              <Text style={styles.metadataPillText}>
+                {getMemoryImportanceLabel(memory.metadata.importance)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         {memory.attachedPhotos.length ? (
         <Text style={styles.photoStatusSummary}>
           {summarizeAttachedPhotoStatuses(memory.attachedPhotos)}
@@ -286,6 +308,23 @@ const styles = StyleSheet.create({
   photoStatusSummary: {
     color: theme.colors.textMuted,
     fontSize: 11,
+  },
+  metadataPills: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.xs,
+  },
+  metadataPill: {
+    alignSelf: "flex-start",
+    backgroundColor: "#F3E6D9",
+    borderRadius: theme.radii.pill,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+  },
+  metadataPillText: {
+    color: theme.colors.accent,
+    fontSize: 10,
+    fontWeight: "700",
   },
   previewRow: {
     flexDirection: "row",

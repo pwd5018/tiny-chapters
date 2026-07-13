@@ -2,14 +2,22 @@ import { createContext, ReactNode, useContext, useMemo } from "react";
 
 import { prompts } from "@/data/prompts";
 import { addLocalDays, parseDateKeyAsLocalDate, toLocalDateKey } from "@/lib/dates";
+import { createDefaultMemoryMetadata, normalizeMetadataList } from "@/lib/memoryMetadata";
 import {
   getSupabaseClient,
   type SupabaseMemoryCollectionMembershipRow,
   type SupabaseMemoryCollectionRow,
+  type SupabaseMemoryMetadataRow,
+  type SupabaseMemoryMetadataSuggestionRow,
   type SupabaseMemoryPhotoRefRow,
   type SupabaseMemoryRow,
 } from "@/lib/supabase";
-import { generateDailyPromptWithAi, isAiGatewayConfigured } from "@/services/ai/aiService";
+import {
+  generateDailyPromptWithAi,
+  generateMetadataSuggestionsWithAi,
+  isAiGatewayConfigured,
+  type MetadataSuggestionVocabulary,
+} from "@/services/ai/aiService";
 import { getCurrentUser } from "@/services/auth/authService";
 import { generateLocalDailyPrompt } from "@/services/dailyPromptGenerator";
 import {
@@ -25,9 +33,14 @@ import type {
   AttachedPhotoSyncStatus,
   CreateMemoryCollectionInput,
   CreateMemoryInput,
+  MemoryImportance,
   Memory,
   MemoryCollection,
   MemoryCollectionSummary,
+  MemoryLifecycleStatus,
+  MemoryMetadata,
+  MemoryMetadataSuggestion,
+  MemoryMetadataSuggestionField,
 } from "@/types/memory";
 
 type MemoryStats = {
@@ -45,6 +58,9 @@ export type MemorySearchFilters = {
   collectionIds?: string[];
   hasPhotos?: boolean;
   hasGuidedContext?: boolean;
+  isFavorite?: boolean;
+  lifecycleStatuses?: MemoryLifecycleStatus[];
+  importance?: MemoryImportance[];
   photoStatuses?: AttachedPhotoSyncStatus[];
 };
 
@@ -76,6 +92,10 @@ type MemoryRepository = {
   updateMemory: (id: string, input: Omit<CreateMemoryInput, "attachedPhotos">) => Promise<Memory>;
   deleteMemory: (id: string) => Promise<void>;
   updateMemoryPhotoRefs: (memoryId: string, attachedPhotos: Memory["attachedPhotos"]) => Promise<void>;
+  getMemoryMetadataSuggestions: (memoryId: string) => Promise<MemoryMetadataSuggestion[]>;
+  generateMemoryMetadataSuggestions: (memory: Memory) => Promise<MemoryMetadataSuggestion[]>;
+  approveMemoryMetadataSuggestion: (suggestionId: string) => Promise<Memory>;
+  rejectMemoryMetadataSuggestion: (suggestionId: string) => Promise<void>;
   searchMemories: (queryOrFilters: string | MemorySearchFilters) => Promise<Memory[]>;
   getDailyPrompt: (date?: Date) => Promise<string>;
 };
@@ -106,12 +126,47 @@ function normalizeSearchValue(value: string) {
   return value.trim().toLowerCase();
 }
 
+function normalizeSuggestionValue(value: string) {
+  return normalizeSearchValue(value).replace(/\s+/g, " ");
+}
+
+function toSuggestionFieldMetadataKey(field: MemoryMetadataSuggestionField) {
+  switch (field) {
+    case "person":
+      return "people";
+    case "place":
+      return "places";
+    case "project":
+      return "projects";
+    case "topic":
+      return "topics";
+    case "tag":
+      return null;
+  }
+}
+
 function normalizeSearchTags(tags: string[] | undefined) {
   return [...new Set((tags ?? []).map((tag) => normalizeSearchValue(tag)).filter(Boolean))];
 }
 
 function normalizeSearchCollectionIds(collectionIds: string[] | undefined) {
   return [...new Set((collectionIds ?? []).map((id) => id.trim()).filter(Boolean))];
+}
+
+function normalizeSearchImportance(importance: MemoryImportance[] | undefined) {
+  return [...new Set((importance ?? []).filter((value) => [1, 2, 3].includes(value)))];
+}
+
+function normalizeSearchLifecycleStatuses(
+  lifecycleStatuses: MemoryLifecycleStatus[] | undefined
+) {
+  return [
+    ...new Set(
+      (lifecycleStatuses ?? []).filter(
+        (status): status is MemoryLifecycleStatus => status === "draft" || status === "finalized"
+      )
+    ),
+  ];
 }
 
 function normalizeSearchFilters(queryOrFilters: string | MemorySearchFilters): MemorySearchFilters {
@@ -129,6 +184,9 @@ function normalizeSearchFilters(queryOrFilters: string | MemorySearchFilters): M
     collectionIds: normalizeSearchCollectionIds(queryOrFilters.collectionIds),
     hasPhotos: queryOrFilters.hasPhotos,
     hasGuidedContext: queryOrFilters.hasGuidedContext,
+    isFavorite: queryOrFilters.isFavorite,
+    lifecycleStatuses: normalizeSearchLifecycleStatuses(queryOrFilters.lifecycleStatuses),
+    importance: normalizeSearchImportance(queryOrFilters.importance),
     photoStatuses: [...new Set(queryOrFilters.photoStatuses ?? [])],
   };
 }
@@ -150,6 +208,13 @@ function matchesQuery(memory: Memory, normalizedQuery: string) {
     memory.guidedContext?.followUps
       .map((followUp) => `${followUp.question} ${followUp.answer} ${followUp.status}`)
       .join(" ") ?? "",
+    memory.metadata.lifecycleStatus,
+    memory.metadata.isFavorite ? "favorite" : "",
+    String(memory.metadata.importance ?? ""),
+    memory.metadata.people.join(" "),
+    memory.metadata.places.join(" "),
+    memory.metadata.projects.join(" "),
+    memory.metadata.topics.join(" "),
     memory.attachedPhotos
       .map(
         (photo) =>
@@ -198,6 +263,26 @@ function matchesStructuredFilters(memory: Memory, filters: MemorySearchFilters) 
 
   if (filters.hasGuidedContext === true && !memory.guidedContext) {
     return false;
+  }
+
+  if (filters.isFavorite === true && !memory.metadata.isFavorite) {
+    return false;
+  }
+
+  if (filters.lifecycleStatuses?.length) {
+    const hasLifecycle = filters.lifecycleStatuses.includes(memory.metadata.lifecycleStatus);
+    if (!hasLifecycle) {
+      return false;
+    }
+  }
+
+  if (filters.importance?.length) {
+    const hasImportance =
+      memory.metadata.importance !== null && filters.importance.includes(memory.metadata.importance);
+
+    if (!hasImportance) {
+      return false;
+    }
   }
 
   if (filters.photoStatuses?.length) {
@@ -283,8 +368,39 @@ function mapCollectionToSummary(collection: MemoryCollection): MemoryCollectionS
   };
 }
 
+function mapMetadataRow(row: SupabaseMemoryMetadataRow | null | undefined): MemoryMetadata {
+  return createDefaultMemoryMetadata({
+    lifecycleStatus: row?.lifecycle_status,
+    isFavorite: row?.is_favorite,
+    importance: row?.importance ?? null,
+    people: normalizeMetadataList(row?.people),
+    places: normalizeMetadataList(row?.places),
+    projects: normalizeMetadataList(row?.projects),
+    topics: normalizeMetadataList(row?.topics),
+  });
+}
+
+function mapMetadataSuggestionRow(
+  row: SupabaseMemoryMetadataSuggestionRow
+): MemoryMetadataSuggestion {
+  return {
+    id: row.id,
+    memoryId: row.memory_id,
+    field: row.field,
+    value: row.value,
+    matchedValue: row.matched_value,
+    confidence: row.confidence,
+    status: row.status,
+    provider: row.provider,
+    model: row.model,
+    createdAt: row.created_at,
+    reviewedAt: row.reviewed_at,
+  };
+}
+
 function mapMemoryRow(
   row: SupabaseMemoryRow,
+  metadataRow: SupabaseMemoryMetadataRow | null | undefined,
   photoRefs: SupabaseMemoryPhotoRefRow[],
   collections: MemoryCollectionSummary[]
 ): Memory {
@@ -295,6 +411,7 @@ function mapMemoryRow(
     text: row.text,
     tags: row.tags ?? [],
     guidedContext: row.guided_context ?? null,
+    metadata: mapMetadataRow(metadataRow),
     collections,
     attachedPhotos: photoRefs.map((photoRef) => ({
       photoId: photoRef.photo_id,
@@ -361,6 +478,49 @@ async function fetchPhotoRefsByMemoryIds(memoryIds: string[]) {
   }
 
   return refsByMemoryId;
+}
+
+async function fetchMetadataByMemoryIds(memoryIds: string[]) {
+  if (!memoryIds.length) {
+    return new Map<string, SupabaseMemoryMetadataRow>();
+  }
+
+  const supabase = getSupabaseClient();
+  const userId = await getUserIdOrThrow();
+  const { data, error } = await supabase
+    .from("memory_metadata")
+    .select(
+      "memory_id, user_id, lifecycle_status, is_favorite, importance, people, places, projects, topics, created_at, updated_at"
+    )
+    .eq("user_id", userId)
+    .in("memory_id", memoryIds);
+
+  if (error) {
+    throw error;
+  }
+
+  return new Map(
+    ((data ?? []) as SupabaseMemoryMetadataRow[]).map((row) => [row.memory_id, row] as const)
+  );
+}
+
+async function fetchMetadataSuggestionsByMemoryId(memoryId: string) {
+  const supabase = getSupabaseClient();
+  const userId = await getUserIdOrThrow();
+  const { data, error } = await supabase
+    .from("memory_metadata_suggestions")
+    .select(
+      "id, memory_id, user_id, field, value, matched_value, confidence, status, provider, model, created_at, reviewed_at"
+    )
+    .eq("user_id", userId)
+    .eq("memory_id", memoryId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as SupabaseMemoryMetadataSuggestionRow[]).map(mapMetadataSuggestionRow);
 }
 
 async function fetchCollectionRowsByUser(userId: string) {
@@ -531,19 +691,50 @@ async function fetchMemoryRowsByIds(userId: string, memoryIds: string[]) {
 
 async function loadMemoriesFromRows(rows: SupabaseMemoryRow[]) {
   const memoryIds = rows.map((row) => row.id);
-  const [refsByMemoryId, collectionsByMemoryId] = await Promise.all([
+  const [refsByMemoryId, collectionsByMemoryId, metadataByMemoryId] = await Promise.all([
     fetchPhotoRefsByMemoryIds(memoryIds),
     fetchCollectionSummariesByMemoryIds(memoryIds),
+    fetchMetadataByMemoryIds(memoryIds),
   ]);
   return sortMemories(
     rows.map((row) =>
       mapMemoryRow(
         row,
+        metadataByMemoryId.get(row.id),
         refsByMemoryId.get(row.id) ?? [],
         collectionsByMemoryId.get(row.id) ?? []
       )
     )
   );
+}
+
+async function upsertMemoryMetadata(
+  memoryId: string,
+  userId: string,
+  metadata: MemoryMetadata | undefined
+) {
+  const supabase = getSupabaseClient();
+  const normalized = createDefaultMemoryMetadata(metadata);
+  const { error } = await supabase.from("memory_metadata").upsert(
+    {
+      memory_id: memoryId,
+      user_id: userId,
+      lifecycle_status: normalized.lifecycleStatus,
+      is_favorite: normalized.isFavorite,
+      importance: normalized.importance,
+      people: normalized.people,
+      places: normalized.places,
+      projects: normalized.projects,
+      topics: normalized.topics,
+    },
+    {
+      onConflict: "memory_id",
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
 }
 
 async function insertPhotoRefs(
@@ -686,8 +877,10 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       fetchPhotoRefsByMemoryIds([data.id]),
       fetchCollectionSummariesByMemoryIds([data.id]),
     ]);
+    const metadataByMemoryId = await fetchMetadataByMemoryIds([data.id]);
     return mapMemoryRow(
       data as SupabaseMemoryRow,
+      metadataByMemoryId.get(data.id),
       refsByMemoryId.get(data.id) ?? [],
       collectionsByMemoryId.get(data.id) ?? []
     );
@@ -909,6 +1102,7 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       throw error;
     }
 
+    await upsertMemoryMetadata(data.id, userId, input.metadata);
     await insertPhotoRefs(data.id, userId, input.attachedPhotos);
     await insertCollectionMemberships(data.id, userId, input.collectionIds ?? []);
 
@@ -946,6 +1140,7 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       throw error;
     }
 
+    await upsertMemoryMetadata(id, userId, input.metadata);
     if (Array.isArray(input.collectionIds)) {
       await setMemoryCollectionMemberships(id, input.collectionIds);
     }
@@ -989,6 +1184,183 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     }
 
     await insertPhotoRefs(memoryId, userId, attachedPhotos);
+  };
+
+  const getMemoryMetadataSuggestions = async (memoryId: string) =>
+    fetchMetadataSuggestionsByMemoryId(memoryId);
+
+  const generateMemoryMetadataSuggestions = async (memory: Memory) => {
+    if (!isAiGatewayConfigured()) {
+      throw new Error("AI suggestions need the local AI gateway to be configured.");
+    }
+
+    const allMemories = await getMemories();
+    const fieldValues: MetadataSuggestionVocabulary = {
+      tag: [],
+      person: [],
+      place: [],
+      project: [],
+      topic: [],
+    };
+
+    for (const candidate of allMemories) {
+      fieldValues.tag.push(...candidate.tags);
+      fieldValues.person.push(...candidate.metadata.people);
+      fieldValues.place.push(...candidate.metadata.places);
+      fieldValues.project.push(...candidate.metadata.projects);
+      fieldValues.topic.push(...candidate.metadata.topics);
+    }
+
+    const vocabulary = Object.fromEntries(
+      (Object.keys(fieldValues) as MemoryMetadataSuggestionField[]).map((field) => [
+        field,
+        [...new Map(fieldValues[field].map((value) => [normalizeSuggestionValue(value), value])).values()]
+          .filter(Boolean)
+          .slice(0, 80),
+      ])
+    ) as MetadataSuggestionVocabulary;
+    const result = await generateMetadataSuggestionsWithAi({
+      prompt: memory.prompt,
+      text: memory.text,
+      vocabulary,
+    });
+    const userId = await getUserIdOrThrow();
+    const supabase = getSupabaseClient();
+
+    const { error: clearError } = await supabase
+      .from("memory_metadata_suggestions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("memory_id", memory.id)
+      .eq("status", "pending");
+
+    if (clearError) {
+      throw clearError;
+    }
+
+    const rows: Array<{
+      memory_id: string;
+      user_id: string;
+      field: MemoryMetadataSuggestionField;
+      value: string;
+      matched_value: string | null;
+      confidence: number;
+      provider: string;
+      model: string;
+    }> = [];
+
+    for (const suggestion of result.suggestions) {
+      const value = suggestion.value.trim();
+      if (!value) {
+        continue;
+      }
+
+      const canonicalMatch = vocabulary[suggestion.field].find(
+        (candidate) =>
+          normalizeSuggestionValue(candidate) ===
+          normalizeSuggestionValue(suggestion.matchedValue ?? value)
+      );
+      rows.push({
+        memory_id: memory.id,
+        user_id: userId,
+        field: suggestion.field,
+        value: canonicalMatch ?? value,
+        matched_value: canonicalMatch ?? null,
+        confidence: Math.max(0, Math.min(100, Math.round(suggestion.confidence))),
+        provider: result.provider,
+        model: result.model,
+      });
+    }
+
+    if (!rows.length) {
+      return [];
+    }
+
+    const { error: insertError } = await supabase.from("memory_metadata_suggestions").insert(rows);
+    if (insertError) {
+      throw insertError;
+    }
+
+    return fetchMetadataSuggestionsByMemoryId(memory.id);
+  };
+
+  const approveMemoryMetadataSuggestion = async (suggestionId: string) => {
+    const supabase = getSupabaseClient();
+    const userId = await getUserIdOrThrow();
+    const { data, error } = await supabase
+      .from("memory_metadata_suggestions")
+      .select(
+        "id, memory_id, user_id, field, value, matched_value, confidence, status, provider, model, created_at, reviewed_at"
+      )
+      .eq("id", suggestionId)
+      .eq("user_id", userId)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) {
+      throw new Error("That suggestion is no longer available for approval.");
+    }
+
+    const suggestion = mapMetadataSuggestionRow(data as SupabaseMemoryMetadataSuggestionRow);
+    const memory = await getMemoryById(suggestion.memoryId);
+    if (!memory) {
+      throw new Error("The chapter for this suggestion could not be found.");
+    }
+
+    const approvedValue = suggestion.matchedValue ?? suggestion.value;
+    if (suggestion.field === "tag") {
+      const { error: tagError } = await supabase
+        .from("memories")
+        .update({ tags: normalizeMetadataList([...memory.tags, approvedValue]) })
+        .eq("id", memory.id)
+        .eq("user_id", userId);
+      if (tagError) {
+        throw tagError;
+      }
+    } else {
+      const metadataField = toSuggestionFieldMetadataKey(suggestion.field);
+      if (metadataField) {
+        await upsertMemoryMetadata(memory.id, userId, {
+          ...memory.metadata,
+          [metadataField]: normalizeMetadataList([...memory.metadata[metadataField], approvedValue]),
+        });
+      }
+    }
+
+    const { error: approveError } = await supabase
+      .from("memory_metadata_suggestions")
+      .update({ status: "approved", reviewed_at: new Date().toISOString() })
+      .eq("id", suggestion.id)
+      .eq("user_id", userId);
+    if (approveError) {
+      throw approveError;
+    }
+
+    const updatedMemory = await getMemoryById(memory.id);
+    if (!updatedMemory) {
+      throw new Error("Suggestion was approved but the chapter could not be reloaded.");
+    }
+
+    return updatedMemory;
+  };
+
+  const rejectMemoryMetadataSuggestion = async (suggestionId: string) => {
+    const supabase = getSupabaseClient();
+    const userId = await getUserIdOrThrow();
+    const { error } = await supabase
+      .from("memory_metadata_suggestions")
+      .update({ status: "rejected", reviewed_at: new Date().toISOString() })
+      .eq("id", suggestionId)
+      .eq("user_id", userId)
+      .eq("status", "pending");
+
+    if (error) {
+      throw error;
+    }
   };
 
   const deleteMemory = async (id: string) => {
@@ -1084,6 +1456,10 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       updateMemory,
       deleteMemory,
       updateMemoryPhotoRefs,
+      getMemoryMetadataSuggestions,
+      generateMemoryMetadataSuggestions,
+      approveMemoryMetadataSuggestion,
+      rejectMemoryMetadataSuggestion,
       searchMemories,
       getDailyPrompt,
     }),

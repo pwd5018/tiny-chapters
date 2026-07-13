@@ -1,5 +1,6 @@
 import { nasPhotoApiBaseUrl, nasPhotoApiKey } from "@/config/appConfig";
 import type { GuidedMemoryDraft } from "@/types/memory";
+import type { MemoryMetadataSuggestionField } from "@/types/memory";
 
 const REQUEST_TIMEOUT_MS = 15000;
 
@@ -17,6 +18,21 @@ type DailyPromptGatewayResponse = {
 
 type PolishGatewayResponse = {
   polishedText: string;
+  provider: string;
+  model: string;
+};
+
+export type MetadataSuggestionVocabulary = Record<MemoryMetadataSuggestionField, string[]>;
+
+export type AiMetadataSuggestion = {
+  field: MemoryMetadataSuggestionField;
+  value: string;
+  confidence: number;
+  matchedValue: string | null;
+};
+
+type MetadataSuggestionsGatewayResponse = {
+  suggestions: AiMetadataSuggestion[];
   provider: string;
   model: string;
 };
@@ -154,6 +170,38 @@ export async function polishGuidedMemoryWithAi(draft: GuidedMemoryDraft) {
     }
 
     return parseJsonResponse<PolishGatewayResponse>(response);
+  } finally {
+    timeout.clear();
+  }
+}
+
+export async function generateMetadataSuggestionsWithAi(input: {
+  prompt: string;
+  text: string;
+  vocabulary: MetadataSuggestionVocabulary;
+}) {
+  if (!isAiGatewayConfigured()) {
+    throw new Error("AI gateway is not configured.");
+  }
+
+  const timeout = createTimeoutSignal();
+
+  try {
+    const response = await fetch(`${getGatewayBaseUrl()}/ai/metadata-suggestions`, {
+      method: "POST",
+      signal: timeout.signal,
+      headers: createAuthHeaders(),
+      body: JSON.stringify(input),
+    });
+
+    if (!response.ok) {
+      const payload: { error?: string } = await parseJsonResponse<{ error?: string }>(
+        response
+      ).catch(() => ({}));
+      throw new Error(payload.error || `AI metadata suggestion request failed with HTTP ${response.status}.`);
+    }
+
+    return parseJsonResponse<MetadataSuggestionsGatewayResponse>(response);
   } finally {
     timeout.clear();
   }

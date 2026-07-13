@@ -62,6 +62,8 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
   lines.push("");
   lines.push(`Exported: ${formatTimestamp(payload.exportedAt)}`);
   lines.push(`Memories: ${payload.summary.memoryCount}`);
+  lines.push(`Favorites: ${payload.summary.favoriteMemoryCount}`);
+  lines.push(`Drafts: ${payload.summary.draftMemoryCount}`);
   lines.push(`Media references: ${payload.summary.totalPhotoReferences}`);
   lines.push(`Print-ready memories: ${payload.printReadinessSummary.readyMemoryCount}`);
   lines.push(`Needs media attention: ${payload.printReadinessSummary.memoriesRequiringPhotoAttentionCount}`);
@@ -79,6 +81,10 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
   lines.push(
     `- Print readiness: ${payload.printReadinessSummary.readyMemoryCount} ready, ${payload.printReadinessSummary.partialMemoryCount} partial, ${payload.printReadinessSummary.textOnlyMemoryCount} text only, ${payload.printReadinessSummary.needsAttentionMemoryCount} need attention`
   );
+  lines.push(
+    `- Lifecycle: ${payload.summary.draftMemoryCount} drafts, ${payload.summary.memoryCount - payload.summary.draftMemoryCount} finalized`
+  );
+  lines.push(`- Favorites: ${payload.summary.favoriteMemoryCount}`);
   lines.push(
     `- Durable media coverage: ${payload.printReadinessSummary.memoriesWithDurablePhotosCount} memories include at least one NAS-linked media reference`
   );
@@ -143,6 +149,10 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
       lines.push("");
       lines.push(memory.printReadinessNote.trim());
       lines.push("");
+      lines.push(
+        `**State:** ${escapeMarkdown(memory.metadata.lifecycleStatus)}${memory.metadata.isFavorite ? " | favorite" : ""}${memory.metadata.importance ? ` | importance ${escapeMarkdown(memory.metadata.importance.toString())}` : ""}`
+      );
+      lines.push("");
       lines.push(`**Prompt:** ${escapeMarkdown(memory.prompt)}`);
       lines.push("");
       lines.push(memory.text.trim() ? memory.text : "_No memory text saved._");
@@ -159,6 +169,33 @@ export function formatMemoryArchiveAsMarkdown(payload: MemoryArchiveExport) {
             .map((collection) => `\`${escapeMarkdown(collection.title)}\``)
             .join(", ")}`
         );
+      }
+
+      if (
+        memory.metadata.people.length ||
+        memory.metadata.places.length ||
+        memory.metadata.projects.length ||
+        memory.metadata.topics.length
+      ) {
+        lines.push("");
+        lines.push("**Confirmed metadata**");
+        lines.push("");
+
+        if (memory.metadata.people.length) {
+          lines.push(`- People: ${memory.metadata.people.map(escapeMarkdown).join(", ")}`);
+        }
+
+        if (memory.metadata.places.length) {
+          lines.push(`- Places: ${memory.metadata.places.map(escapeMarkdown).join(", ")}`);
+        }
+
+        if (memory.metadata.projects.length) {
+          lines.push(`- Projects: ${memory.metadata.projects.map(escapeMarkdown).join(", ")}`);
+        }
+
+        if (memory.metadata.topics.length) {
+          lines.push(`- Topics: ${memory.metadata.topics.map(escapeMarkdown).join(", ")}`);
+        }
       }
 
       if (memory.guidedContext) {

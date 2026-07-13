@@ -4,6 +4,7 @@ import type {
   AttachedPhotoSyncStatus,
   MemoryCollectionKind,
   MemoryGuidanceContext,
+  MemoryMetadata,
 } from "@/types/memory";
 
 export type MemoryExportCollectionEntry = {
@@ -54,6 +55,7 @@ export type MemoryExportEntry = {
   prompt: string;
   text: string;
   tags: string[];
+  metadata: MemoryMetadata;
   collections: MemoryExportCollectionEntry[];
   guidedContext: MemoryGuidanceContext | null;
   attachedPhotoCount: number;
@@ -86,6 +88,8 @@ export type MemoryExportSummary = {
   memoryCount: number;
   taggedMemoryCount: number;
   untaggedMemoryCount: number;
+  favoriteMemoryCount: number;
+  draftMemoryCount: number;
   memoryWithPhotosCount: number;
   textOnlyMemoryCount: number;
   totalPhotoReferences: number;
@@ -132,7 +136,7 @@ export type MemoryExportCollectionSummary = {
 };
 
 export type MemoryArchiveExport = {
-  schemaVersion: "2026-07-phase18-v1";
+  schemaVersion: "2026-07-phase19-v1";
   exportType: "tiny-chapters-archive";
   exportedAt: string;
   filters: MemoryExportFilterSummary;

@@ -20,7 +20,7 @@ import type {
   MemoryExportTagSummary,
 } from "@/types/export";
 
-const EXPORT_SCHEMA_VERSION = "2026-07-phase18-v1" as const;
+const EXPORT_SCHEMA_VERSION = "2026-07-phase19-v1" as const;
 
 function normalizeDateBoundary(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -147,6 +147,7 @@ function mapMemoryToExportEntry(memory: Memory): MemoryExportEntry {
     prompt: memory.prompt,
     text: memory.text,
     tags: memory.tags,
+    metadata: memory.metadata,
     collections: memory.collections.map((collection) => ({
       id: collection.id,
       title: collection.title,
@@ -193,6 +194,8 @@ function buildExportSummary(memories: MemoryExportEntry[]): MemoryExportSummary 
     memoryCount: memories.length,
     taggedMemoryCount: 0,
     untaggedMemoryCount: 0,
+    favoriteMemoryCount: 0,
+    draftMemoryCount: 0,
     memoryWithPhotosCount: 0,
     textOnlyMemoryCount: 0,
     totalPhotoReferences: 0,
@@ -208,6 +211,14 @@ function buildExportSummary(memories: MemoryExportEntry[]): MemoryExportSummary 
       summary.taggedMemoryCount += 1;
     } else {
       summary.untaggedMemoryCount += 1;
+    }
+
+    if (memory.metadata.isFavorite) {
+      summary.favoriteMemoryCount += 1;
+    }
+
+    if (memory.metadata.lifecycleStatus === "draft") {
+      summary.draftMemoryCount += 1;
     }
 
     if (memory.photoManifest.length) {

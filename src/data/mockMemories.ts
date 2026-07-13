@@ -8,6 +8,15 @@ export const mockMemories: Memory[] = [
     text: "Mila tried to teach the dog how to whisper and got more dramatic with every attempt.",
     tags: ["family", "funny", "dog"],
     guidedContext: null,
+    metadata: {
+      lifecycleStatus: "finalized",
+      isFavorite: true,
+      importance: 2,
+      people: ["Mila"],
+      places: [],
+      projects: [],
+      topics: ["family humor"],
+    },
     collections: [],
     attachedPhotos: [
       {
@@ -29,6 +38,15 @@ export const mockMemories: Memory[] = [
     text: "Lunch got quiet for a second because everyone was watching rain bead down the window.",
     tags: ["quiet", "rain"],
     guidedContext: null,
+    metadata: {
+      lifecycleStatus: "finalized",
+      isFavorite: false,
+      importance: 1,
+      people: [],
+      places: [],
+      projects: [],
+      topics: ["weather", "quiet moments"],
+    },
     collections: [],
     attachedPhotos: [
       {
@@ -49,6 +67,15 @@ export const mockMemories: Memory[] = [
     text: "At bedtime, Theo said the moon looked like it forgot part of its pancake.",
     tags: ["kids", "bedtime"],
     guidedContext: null,
+    metadata: {
+      lifecycleStatus: "draft",
+      isFavorite: false,
+      importance: null,
+      people: ["Theo"],
+      places: [],
+      projects: [],
+      topics: ["bedtime"],
+    },
     collections: [],
     attachedPhotos: [],
     createdAt: "2026-06-09T23:05:00.000Z",

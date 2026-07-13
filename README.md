@@ -38,6 +38,7 @@ Current state:
 - Search filters that now include collection membership alongside text, tags, dates, guided context, and photo durability
 - Save-first export with JSON and Markdown archive output plus collection membership and print-readiness metadata
 - Additive media-generalization groundwork inside the existing `memory_photo_refs` seam, including local video attachments and generalized attachment metadata without changing the current storage names yet
+- First-pass `memory_metadata` sidecar support for confirmed metadata and lightweight draft/finalized lifecycle state, including favorite flags, importance, people, places, projects, and topics
 - Redesigned visual baseline across Today, Moments, Search, and Write with calmer hierarchy and warmer editorial cards/forms
 - Today, Moments, Search, and Settings screens working against service abstractions
 - Native Android project available for emulator/device work when needed
@@ -46,7 +47,7 @@ Not implemented yet:
 - Full iPhone validation, generated `ios/` project work, or TestFlight readiness
 - Broader life-memory domain generalization beyond the current `memory` implementation naming
 - NAS-backed video indexing, richer media previews, and a fuller generalized media-reference model beyond the current groundwork
-- Confirmed versus inferred metadata seams
+- Broader inferred-metadata and provenance seams beyond the new confirmed-metadata foundation
 - Provider-style integration boundaries for the separate Personal Assistant app
 - Assistant-proposed Tiny Chapters drafts
 
@@ -188,9 +189,10 @@ Developer diagnostics are also device-local:
 1. Create a Supabase project.
 2. In Supabase SQL Editor, run the SQL from [supabase/migrations/20260619_phase2_memories.sql](C:\Users\wolf-ai\Workspace\tiny-chapters\supabase\migrations\20260619_phase2_memories.sql).
 3. Then run [supabase/migrations/20260621_phase38_photo_durability.sql](C:\Users\wolf-ai\Workspace\tiny-chapters\supabase\migrations\20260621_phase38_photo_durability.sql).
-4. In Supabase Authentication, enable Email provider.
-5. Add your project URL and anon key to `.env`.
-6. Restart Metro after adding env vars:
+4. Then run [supabase/migrations/20260703_phase10_guided_memory_context.sql](C:\Users\wolf-ai\Workspace\tiny-chapters\supabase\migrations\20260703_phase10_guided_memory_context.sql), [20260711_phase16_memory_collections.sql](C:\Users\wolf-ai\Workspace\tiny-chapters\supabase\migrations\20260711_phase16_memory_collections.sql), [20260712_phase18_media_generalization.sql](C:\Users\wolf-ai\Workspace\tiny-chapters\supabase\migrations\20260712_phase18_media_generalization.sql), [20260712_phase19_metadata_lifecycle_foundation.sql](C:\Users\wolf-ai\Workspace\tiny-chapters\supabase\migrations\20260712_phase19_metadata_lifecycle_foundation.sql), and [20260712_phase19_inferred_metadata_suggestions.sql](C:\Users\wolf-ai\Workspace\tiny-chapters\supabase\migrations\20260712_phase19_inferred_metadata_suggestions.sql), in that order.
+5. In Supabase Authentication, enable Email provider.
+6. Add your project URL and anon key to `.env`.
+7. Restart Metro after adding env vars:
 
 ```powershell
 npx expo start -c

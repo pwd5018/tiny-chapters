@@ -6,7 +6,7 @@ Read this file, [ARCHITECTURE.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\
 
 Tiny Chapters is a private life-memory app for capturing durable personal records across family memories, diary-style entries, reflections, ideas, life events, and other meaningful chapters of lived experience. The current implementation still uses `memory` as the core storage and service term, but the product direction is broader than family-only capture now. The mobile app stores auth, memory text, tags, guided context, collection membership, and photo reference metadata in Supabase. Original photos stay outside Supabase. In the current personal workflow, a separate local Photo API indexes a Windows-accessible NAS share and serves metadata, thumbnails, and view URLs to the app.
 
-## Current status after Phase 15
+## Current status after Phase 19 groundwork
 
 Implemented in the repo now:
 
@@ -29,7 +29,7 @@ Implemented in the repo now:
 - Export now preserves generalized media metadata for attached refs even though some implementation seams still keep legacy photo-oriented names for compatibility
 - Saved chapter surfaces now render video attachments with media-aware fallback treatment and duration cues instead of assuming every attachment needs an image thumbnail
 - Completed Phase 14 search upgrade with stronger archive filtering across text, exact tags, date range, guided-memory presence, photo presence, and photo durability states
-- Supabase Auth plus Supabase-backed `memories` and `memory_photo_refs`
+- Supabase Auth plus Supabase-backed `memories`, `memory_metadata`, and `memory_photo_refs`
 - Service-layer boundaries for auth, memories, photos, reminders, diagnostics, and permissions
 - Mock, NAS, and device-aware photo source handling behind `photoService`
 - Standalone `photo-api/` service with bearer auth, SQLite index, scan history, root checks, scheduled scans, thumbnails, and metadata matching
@@ -64,33 +64,13 @@ Not implemented yet:
 
 Current next-phase plan:
 
-- Phase 13 is complete.
-- Phase 14 is complete.
-- Phase 15 is complete.
-- Export is now the archive-ready handoff format for a later printed-book workflow, not just a one-off data dump.
-- The current export preserves enough photo identity and readiness metadata for a later local companion workflow to resolve real originals from NAS or local storage and triage what still needs attention.
-- The next app-roadmap phase is Phase 16: Memory Collections.
-- Phase 16 should add meaningful larger groupings for memories such as vacations, school years, holidays, and kid-specific chapters without undoing the calmer Today plus dedicated Write flow that now exists.
-- Phase 16 should treat collections as durable archive structure, not just a thin tag preset layer.
-- Phase 16 collection data foundation and repository groundwork are now in the repo: Supabase collection tables exist, memories can belong to multiple collections, and `memoryService` owns collection CRUD plus grouped collection queries for future screens.
-- Moments now includes a first collection-browsing pass with a collections section at the top of the archive plus a dedicated collection detail screen for drilling into the memories inside one larger chapter.
-- Write and memory detail now include a lightweight collection-assignment surface so memories can be added to larger chapters without turning the main composition flow into a heavy metadata form.
-- Search now supports collection-based filtering alongside the existing text, tag, date, guided, and photo-state filters, and export payloads now preserve collection membership so archive consumers can keep larger chapters intact.
-- The collection-assignment flow now includes manual-first starter templates for Vacation, School Year, Holiday, and Kid Chapter so people can start with familiar chapter shapes before renaming them.
-- The first planned slices are:
-  1. collection data foundation
-  2. collection repository/service seam
-  3. Moments-first collection browsing
-  4. lightweight collection assignment flows
-  5. search/export integration
-  6. manual-first starter templates
-- Phase 16 is now complete.
-- The broader vision and future Personal Assistant boundary are now documented in `docs/LIFE_MEMORY_VISION_AND_INTEGRATION_PLAN.md`.
-- Phase 17 is complete.
-- Phase 17 aligned the canonical docs, broad product framing, and the main user-facing app copy around Tiny Chapters as a broader life-memory platform while keeping the current `memory` storage seams stable.
-- The next implementation phase should be Phase 18: Media Generalization, which should generalize the current photo-only attachment model to support video and later voice without breaking the NAS-first durable-reference architecture.
-- Phase 18 now has partial groundwork in the repo: local video refs and generalized attachment metadata exist, but NAS indexing, poster generation, richer previews, and voice-note support are still unfinished.
-- The next print-focused step should live in a separate local companion workflow that reads the Tiny Chapters export, resolves actual photo files, and assembles print-ready output.
+- Phases 13 through 17 are complete.
+- Phase 18 has partial groundwork in the repo: local video refs and generalized attachment metadata exist, but NAS indexing, poster generation, richer previews, and voice-note support are still unfinished.
+- The next implementation priority is Phase 19: Metadata, Provenance, and Draft Lifecycle.
+- The first Phase 19 slice is now in the repo as an additive `memory_metadata` sidecar seam for confirmed metadata and lightweight draft/finalized state, without changing the primary `memories` record model or treating AI inference as durable truth.
+- Phase 19.2 now adds `memory_metadata_suggestions`: user-triggered text-based AI suggestions are matched against confirmed archive vocabulary where possible, then remain pending until individually approved or dismissed. Approving a suggestion is the only path that promotes it into confirmed tags or metadata.
+- The next Phase 19 slice should build the user-started and assistant-proposed draft lifecycle, still preserving approval and provenance boundaries.
+- The next print-focused step should still live in a separate local companion workflow that reads the Tiny Chapters export, resolves actual photo files, and assembles print-ready output.
 
 ## Tech stack
 

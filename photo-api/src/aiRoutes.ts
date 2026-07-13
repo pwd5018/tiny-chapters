@@ -5,12 +5,33 @@ import {
   AiGatewayError,
   generateAiDailyPrompt,
   generateAiFollowUps,
+  generateAiMetadataSuggestions,
   generateAiPolish,
   getAiGatewayStatus,
 } from "./aiProvider";
 
 function getStringField(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+const metadataSuggestionFields = ["tag", "person", "place", "project", "topic"] as const;
+type MetadataSuggestionField = (typeof metadataSuggestionFields)[number];
+
+function getMetadataVocabulary(value: unknown): Record<MetadataSuggestionField, string[]> {
+  const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+
+  return Object.fromEntries(
+    metadataSuggestionFields.map((field) => [
+      field,
+      Array.isArray(source[field])
+        ? source[field]
+            .filter((item): item is string => typeof item === "string")
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .slice(0, 80)
+        : [],
+    ])
+  ) as Record<MetadataSuggestionField, string[]>;
 }
 
 export function createAiRouter() {
@@ -120,6 +141,29 @@ export function createAiRouter() {
       }
 
       res.status(500).json({ error: "AI polish generation failed." });
+    }
+  });
+
+  router.post("/ai/metadata-suggestions", async (req, res) => {
+    const prompt = getStringField(req.body?.prompt);
+    const text = getStringField(req.body?.text);
+    const vocabulary = getMetadataVocabulary(req.body?.vocabulary);
+
+    if (!text) {
+      res.status(400).json({ error: "text is required." });
+      return;
+    }
+
+    try {
+      const result = await generateAiMetadataSuggestions(prompt, text, vocabulary);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof AiGatewayError) {
+        res.status(error.statusCode).json({ error: error.message });
+        return;
+      }
+
+      res.status(500).json({ error: "AI metadata suggestion generation failed." });
     }
   });
 

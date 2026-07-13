@@ -4,7 +4,15 @@ import * as SecureStore from "expo-secure-store";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { supabaseAnonKey, supabaseUrl } from "@/config/appConfig";
-import type { AttachedMediaKind, MemoryCollectionKind, MemoryGuidanceContext } from "@/types/memory";
+import type {
+  AttachedMediaKind,
+  MemoryCollectionKind,
+  MemoryGuidanceContext,
+  MemoryImportance,
+  MemoryLifecycleStatus,
+  MemoryMetadataSuggestionField,
+  MemoryMetadataSuggestionStatus,
+} from "@/types/memory";
 
 const secureStoreAdapter = {
   getItem: (key: string) => SecureStore.getItemAsync(key),
@@ -24,6 +32,35 @@ export type SupabaseMemoryRow = {
   guided_context: MemoryGuidanceContext | null;
   created_at: string;
   updated_at: string;
+};
+
+export type SupabaseMemoryMetadataRow = {
+  memory_id: string;
+  user_id: string;
+  lifecycle_status: MemoryLifecycleStatus;
+  is_favorite: boolean;
+  importance: MemoryImportance | null;
+  people: string[];
+  places: string[];
+  projects: string[];
+  topics: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type SupabaseMemoryMetadataSuggestionRow = {
+  id: string;
+  memory_id: string;
+  user_id: string;
+  field: MemoryMetadataSuggestionField;
+  value: string;
+  matched_value: string | null;
+  confidence: number;
+  status: MemoryMetadataSuggestionStatus;
+  provider: string | null;
+  model: string | null;
+  created_at: string;
+  reviewed_at: string | null;
 };
 
 export type SupabaseMemoryCollectionRow = {

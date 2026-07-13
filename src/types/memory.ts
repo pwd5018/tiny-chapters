@@ -1,5 +1,9 @@
 export type AttachedPhotoSource = "nas" | "local" | "mock";
 export type AttachedMediaKind = "photo" | "video" | "voice";
+export type MemoryLifecycleStatus = "draft" | "finalized";
+export type MemoryImportance = 1 | 2 | 3;
+export type MemoryMetadataSuggestionField = "tag" | "person" | "place" | "project" | "topic";
+export type MemoryMetadataSuggestionStatus = "pending" | "approved" | "rejected";
 export type AttachedPhotoSyncStatus =
   | "local_only"
   | "pending_nas_match"
@@ -36,6 +40,30 @@ export type MemoryGuidanceContext = {
   originalAnswer: string;
   followUps: GuidedMemoryFollowUp[];
   polishedSuggestion: string | null;
+};
+
+export type MemoryMetadata = {
+  lifecycleStatus: MemoryLifecycleStatus;
+  isFavorite: boolean;
+  importance: MemoryImportance | null;
+  people: string[];
+  places: string[];
+  projects: string[];
+  topics: string[];
+};
+
+export type MemoryMetadataSuggestion = {
+  id: string;
+  memoryId: string;
+  field: MemoryMetadataSuggestionField;
+  value: string;
+  matchedValue: string | null;
+  confidence: number;
+  status: MemoryMetadataSuggestionStatus;
+  provider: string | null;
+  model: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
 };
 
 export type AttachedPhotoRef = {
@@ -80,6 +108,7 @@ export type Memory = {
   text: string;
   tags: string[];
   guidedContext: MemoryGuidanceContext | null;
+  metadata: MemoryMetadata;
   collections: MemoryCollectionSummary[];
   attachedPhotos: AttachedPhotoRef[];
   createdAt: string;
@@ -100,6 +129,7 @@ export type CreateMemoryInput = {
   text: string;
   tags: string[];
   guidedContext?: MemoryGuidanceContext | null;
+  metadata?: MemoryMetadata;
   collectionIds?: string[];
   attachedPhotos: AttachedPhotoRef[];
 };

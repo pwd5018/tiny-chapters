@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { FadeInView } from "@/components/FadeInView";
 import { CollectionAssignmentCard } from "@/components/CollectionAssignmentCard";
+import { MemoryMetadataCard } from "@/components/MemoryMetadataCard";
 import { DatePickerField } from "@/components/DatePickerField";
 import { ScreenHero } from "@/components/ScreenHero";
 import {
@@ -37,6 +38,7 @@ import {
   addDiagnosticsEvent,
   isDeveloperModeEnabled,
 } from "@/services/diagnostics/diagnosticsService";
+import { createDefaultMemoryMetadata, parseMetadataList } from "@/lib/memoryMetadata";
 import { useMemoryService } from "@/services/memoryService";
 import { requestCameraPermission } from "@/services/permissions/permissionService";
 import {
@@ -50,7 +52,7 @@ import { usePhotoAttachments } from "@/services/photo/photoAttachmentContext";
 import { attemptNasRelinkForRef } from "@/services/photo/photoRelinkService";
 import { getPhotoImageSource, isNasPhotoMatchingAvailable } from "@/services/photo/photoService";
 import { theme } from "@/theme/theme";
-import type { AttachedPhotoRef } from "@/types/memory";
+import type { AttachedPhotoRef, MemoryMetadata } from "@/types/memory";
 import { parseDateKeyAsLocalDate } from "@/lib/dates";
 
 type AiDebugStatus = {
@@ -177,6 +179,8 @@ export function WriteMemoryScreen() {
   const [polishDebugStatus, setPolishDebugStatus] = useState<AiDebugStatus | null>(null);
   const [dailyPrompt, setDailyPrompt] = useState("What made today worth remembering?");
   const [sameDayMemoryCount, setSameDayMemoryCount] = useState(0);
+  const [tagsInput, setTagsInput] = useState("");
+  const [metadata, setMetadata] = useState<MemoryMetadata>(() => createDefaultMemoryMetadata());
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
 
   const followUps = guidedMemoryDraft?.followUps ?? [];
@@ -307,13 +311,16 @@ export function WriteMemoryScreen() {
         date: parseDateKeyAsLocalDate(selectedDateKey).toISOString(),
         prompt: dailyPrompt,
         text: trimmed,
-        tags: [],
+        tags: parseMetadataList(tagsInput),
         guidedContext: createMemoryGuidanceContext(guidedMemoryDraft),
+        metadata,
         collectionIds: selectedCollectionIds,
         attachedPhotos: selectedAttachments,
       });
 
       clearDraft();
+      setTagsInput("");
+      setMetadata(createDefaultMemoryMetadata());
       setSelectedCollectionIds([]);
       clearAttachmentsForScope(attachmentScope);
       router.replace("/(tabs)" as never);
@@ -788,6 +795,18 @@ export function WriteMemoryScreen() {
           </FadeInView>
 
           <FadeInView delay={120}>
+            <MemoryMetadataCard
+              editable
+              title="Entry details"
+              helperText="Keep this light: save a draft when it is still forming, or add a few confirmed details that help future you find it again."
+              metadata={metadata}
+              selectedTagsInput={tagsInput}
+              onMetadataChange={setMetadata}
+              onTagsInputChange={setTagsInput}
+            />
+          </FadeInView>
+
+          <FadeInView delay={130}>
             <CollectionAssignmentCard
               editable
               title="Collections"

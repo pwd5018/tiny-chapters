@@ -13,11 +13,12 @@ import {
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 
+import { CollectionAssignmentCard } from "@/components/CollectionAssignmentCard";
 import { DatePickerField } from "@/components/DatePickerField";
+import { MemoryMetadataCard } from "@/components/MemoryMetadataCard";
+import { MemoryMetadataSuggestionsCard } from "@/components/MemoryMetadataSuggestionsCard";
+import { parseMetadataList } from "@/lib/memoryMetadata";
 import { useMemoryService } from "@/services/memoryService";
-import {
-  CollectionAssignmentCard,
-} from "@/components/CollectionAssignmentCard";
 import {
   formatAttachedMediaDuration,
   getAttachedPhotoDisplayName,
@@ -31,7 +32,12 @@ import { usePhotoAttachments } from "@/services/photo/photoAttachmentContext";
 import { attemptNasRelinkForMemory } from "@/services/photo/photoRelinkService";
 import { getPhotoById, getPhotoImageSource } from "@/services/photo/photoService";
 import { theme } from "@/theme/theme";
-import type { AttachedPhotoRef, Memory } from "@/types/memory";
+import type {
+  AttachedPhotoRef,
+  Memory,
+  MemoryMetadata,
+  MemoryMetadataSuggestion,
+} from "@/types/memory";
 import type { PhotoAsset } from "@/types/photo";
 
 function toDateKey(isoString: string) {
@@ -174,7 +180,16 @@ export default function MemoryDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const memoryId = typeof params.id === "string" ? params.id : "";
   const attachmentScope = `memory:${memoryId}`;
-  const { getMemoryById, updateMemory, deleteMemory, updateMemoryPhotoRefs } = useMemoryService();
+  const {
+    approveMemoryMetadataSuggestion,
+    deleteMemory,
+    generateMemoryMetadataSuggestions,
+    getMemoryById,
+    getMemoryMetadataSuggestions,
+    rejectMemoryMetadataSuggestion,
+    updateMemory,
+    updateMemoryPhotoRefs,
+  } = useMemoryService();
   const {
     getAttachments,
     setAttachments,
@@ -189,11 +204,15 @@ export default function MemoryDetailScreen() {
   const [prompt, setPrompt] = useState("");
   const [text, setText] = useState("");
   const [tagsInput, setTagsInput] = useState("");
+  const [metadata, setMetadata] = useState<MemoryMetadata | null>(null);
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
+  const [metadataSuggestions, setMetadataSuggestions] = useState<MemoryMetadataSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
+  const [isReviewingSuggestionId, setIsReviewingSuggestionId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const isEditingRef = useRef(false);
@@ -208,6 +227,7 @@ export default function MemoryDetailScreen() {
     setPrompt(nextMemory.prompt);
     setText(nextMemory.text);
     setTagsInput(nextMemory.tags.join(", "));
+    setMetadata(nextMemory.metadata);
     setSelectedCollectionIds(nextMemory.collections.map((collection) => collection.id));
     setAttachments(attachmentScope, nextMemory.attachedPhotos);
   };
@@ -238,6 +258,11 @@ export default function MemoryDetailScreen() {
         }
 
         hydrateDraft(nextMemory);
+        try {
+          setMetadataSuggestions(await getMemoryMetadataSuggestions(memoryId));
+        } catch {
+          // Suggestions are additive; the saved chapter stays usable if they cannot load.
+        }
 
         void (async () => {
           try {
@@ -271,7 +296,7 @@ export default function MemoryDetailScreen() {
     return () => {
       isActive = false;
     };
-  }, [attachmentScope, getMemoryById, memoryId]);
+  }, [attachmentScope, getMemoryById, getMemoryMetadataSuggestions, memoryId]);
 
   const handleCancel = () => {
     if (!memory) {
@@ -309,6 +334,7 @@ export default function MemoryDetailScreen() {
         text: trimmedText,
         tags: parseTagsInput(tagsInput),
         guidedContext: memory.guidedContext ?? null,
+        metadata: metadata ?? memory.metadata,
         collectionIds: selectedCollectionIds,
       });
       await updateMemoryPhotoRefs(memory.id, selectedAttachments);
@@ -320,6 +346,62 @@ export default function MemoryDetailScreen() {
       setErrorMessage(error instanceof Error ? error.message : "Could not save changes.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleGenerateMetadataSuggestions = async () => {
+    if (!memory) {
+      return;
+    }
+
+    setIsGeneratingSuggestions(true);
+    setErrorMessage("");
+    setSaveMessage("");
+
+    try {
+      const suggestions = await generateMemoryMetadataSuggestions(memory);
+      setMetadataSuggestions(suggestions);
+      setSaveMessage(
+        suggestions.length
+          ? "Suggestions are ready for your review."
+          : "No confident details were suggested from this chapter."
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Could not generate metadata suggestions."
+      );
+    } finally {
+      setIsGeneratingSuggestions(false);
+    }
+  };
+
+  const handleApproveMetadataSuggestion = async (suggestion: MemoryMetadataSuggestion) => {
+    setIsReviewingSuggestionId(suggestion.id);
+    setErrorMessage("");
+
+    try {
+      const updatedMemory = await approveMemoryMetadataSuggestion(suggestion.id);
+      hydrateDraft(updatedMemory);
+      setMetadataSuggestions(await getMemoryMetadataSuggestions(updatedMemory.id));
+      setSaveMessage(`${suggestion.value} added to confirmed details.`);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Could not approve that suggestion.");
+    } finally {
+      setIsReviewingSuggestionId(null);
+    }
+  };
+
+  const handleRejectMetadataSuggestion = async (suggestion: MemoryMetadataSuggestion) => {
+    setIsReviewingSuggestionId(suggestion.id);
+    setErrorMessage("");
+
+    try {
+      await rejectMemoryMetadataSuggestion(suggestion.id);
+      setMetadataSuggestions(await getMemoryMetadataSuggestions(suggestion.memoryId));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Could not dismiss that suggestion.");
+    } finally {
+      setIsReviewingSuggestionId(null);
     }
   };
 
@@ -438,16 +520,6 @@ export default function MemoryDetailScreen() {
                       style={styles.textArea}
                     />
                   </View>
-                  <View style={styles.fieldBlock}>
-                    <Text style={styles.fieldLabel}>Tags</Text>
-                    <TextInput
-                      value={tagsInput}
-                      onChangeText={setTagsInput}
-                      placeholder="summer, funny, project"
-                      placeholderTextColor={theme.colors.textSoft}
-                      style={styles.singleLineInput}
-                    />
-                  </View>
                 </View>
               ) : (
                 <View style={styles.detailCopy}>
@@ -457,21 +529,32 @@ export default function MemoryDetailScreen() {
                   <Text style={styles.detailValue}>{memory.prompt}</Text>
                   <Text style={styles.detailLabel}>Memory text</Text>
                   <Text style={styles.detailBody}>{memory.text}</Text>
-                  <Text style={styles.detailLabel}>Tags</Text>
-                  {memory.tags.length ? (
-                    <View style={styles.tags}>
-                      {memory.tags.map((tag) => (
-                        <View key={tag} style={styles.tag}>
-                          <Text style={styles.tagText}>#{tag}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <Text style={styles.emptyText}>No tags yet.</Text>
-                  )}
                 </View>
               )}
             </View>
+
+            {metadata ? (
+              <MemoryMetadataCard
+                editable={isEditing}
+                title="Entry details"
+                helperText="Keep structure honest: confirmed details belong here, while unfinished or uncertain thoughts can stay as a draft."
+                metadata={metadata}
+                selectedTagsInput={tagsInput}
+                onMetadataChange={setMetadata}
+                onTagsInputChange={setTagsInput}
+              />
+            ) : null}
+
+            {!isEditing ? (
+              <MemoryMetadataSuggestionsCard
+                isGenerating={isGeneratingSuggestions}
+                isReviewingSuggestionId={isReviewingSuggestionId}
+                suggestions={metadataSuggestions}
+                onGenerate={() => void handleGenerateMetadataSuggestions()}
+                onApprove={(suggestion) => void handleApproveMetadataSuggestion(suggestion)}
+                onReject={(suggestion) => void handleRejectMetadataSuggestion(suggestion)}
+              />
+            ) : null}
 
             <CollectionAssignmentCard
               editable={isEditing}

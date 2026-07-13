@@ -14,10 +14,17 @@ import { DatePickerField } from "@/components/DatePickerField";
 import { FadeInView } from "@/components/FadeInView";
 import { MemoryCard } from "@/components/MemoryCard";
 import { ScreenHero } from "@/components/ScreenHero";
+import { getMemoryImportanceLabel, getMemoryLifecycleLabel } from "@/lib/memoryMetadata";
 import { toLocalDateKey } from "@/lib/dates";
 import { useMemoryService } from "@/services/memoryService";
 import { theme } from "@/theme/theme";
-import type { Memory, AttachedPhotoSyncStatus, MemoryCollection } from "@/types/memory";
+import type {
+  Memory,
+  AttachedPhotoSyncStatus,
+  MemoryCollection,
+  MemoryImportance,
+  MemoryLifecycleStatus,
+} from "@/types/memory";
 
 const PHOTO_STATUS_FILTERS: Array<{
   key: AttachedPhotoSyncStatus;
@@ -44,6 +51,9 @@ function buildFilterSummary(options: {
   toDate: string;
   photosOnly: boolean;
   guidedOnly: boolean;
+  favoritesOnly: boolean;
+  lifecycleStatuses: MemoryLifecycleStatus[];
+  importance: MemoryImportance[];
   photoStatuses: AttachedPhotoSyncStatus[];
 }) {
   const parts: string[] = [];
@@ -74,6 +84,22 @@ function buildFilterSummary(options: {
 
   if (options.guidedOnly) {
     parts.push("guided only");
+  }
+
+  if (options.favoritesOnly) {
+    parts.push("favorites");
+  }
+
+  if (options.lifecycleStatuses.length) {
+    parts.push(
+      `state ${options.lifecycleStatuses.map((status) => getMemoryLifecycleLabel(status)).join(", ")}`
+    );
+  }
+
+  if (options.importance.length) {
+    parts.push(
+      `importance ${options.importance.map((value) => getMemoryImportanceLabel(value)).join(", ")}`
+    );
   }
 
   if (options.photoStatuses.length) {
@@ -125,7 +151,12 @@ export default function SearchScreen() {
   const [toDate, setToDate] = useState(() => toLocalDateKey(new Date()));
   const [photosOnly, setPhotosOnly] = useState(false);
   const [guidedOnly, setGuidedOnly] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
+  const [selectedLifecycleStatuses, setSelectedLifecycleStatuses] = useState<
+    MemoryLifecycleStatus[]
+  >([]);
+  const [selectedImportance, setSelectedImportance] = useState<MemoryImportance[]>([]);
   const [selectedPhotoStatuses, setSelectedPhotoStatuses] = useState<AttachedPhotoSyncStatus[]>(
     []
   );
@@ -147,12 +178,18 @@ export default function SearchScreen() {
         toDate,
         photosOnly,
         guidedOnly,
+        favoritesOnly,
+        lifecycleStatuses: selectedLifecycleStatuses,
+        importance: selectedImportance,
         photoStatuses: selectedPhotoStatuses,
       }),
     [
+      favoritesOnly,
       fromDate,
       fromEnabled,
       guidedOnly,
+      selectedImportance,
+      selectedLifecycleStatuses,
       selectedCollections,
       photosOnly,
       query,
@@ -180,6 +217,9 @@ export default function SearchScreen() {
           collectionIds: selectedCollectionIds,
           hasPhotos: photosOnly || selectedPhotoStatuses.length ? true : undefined,
           hasGuidedContext: guidedOnly ? true : undefined,
+          isFavorite: favoritesOnly ? true : undefined,
+          lifecycleStatuses: selectedLifecycleStatuses,
+          importance: selectedImportance,
           photoStatuses: selectedPhotoStatuses,
           }),
           getCollections(),
@@ -208,11 +248,14 @@ export default function SearchScreen() {
   }, [
     fromDate,
     fromEnabled,
+      favoritesOnly,
       guidedOnly,
       getCollections,
       photosOnly,
       query,
       selectedCollectionIds,
+      selectedImportance,
+      selectedLifecycleStatuses,
       searchMemories,
       selectedPhotoStatuses,
       tagFilters,
@@ -231,7 +274,10 @@ export default function SearchScreen() {
     setToDate(toLocalDateKey(new Date()));
     setPhotosOnly(false);
     setGuidedOnly(false);
+    setFavoritesOnly(false);
     setSelectedCollectionIds([]);
+    setSelectedLifecycleStatuses([]);
+    setSelectedImportance([]);
     setSelectedPhotoStatuses([]);
   };
 
@@ -352,6 +398,57 @@ export default function SearchScreen() {
                 active={guidedOnly}
                 onPress={() => setGuidedOnly((current) => !current)}
               />
+              <FilterPill
+                label="Favorites"
+                active={favoritesOnly}
+                onPress={() => setFavoritesOnly((current) => !current)}
+              />
+            </View>
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.groupLabel}>Lifecycle</Text>
+            <View style={styles.filterWrapRow}>
+              {(["draft", "finalized"] as MemoryLifecycleStatus[]).map((status) => {
+                const active = selectedLifecycleStatuses.includes(status);
+                return (
+                  <FilterPill
+                    key={status}
+                    label={getMemoryLifecycleLabel(status)}
+                    active={active}
+                    onPress={() =>
+                      setSelectedLifecycleStatuses((current) =>
+                        current.includes(status)
+                          ? current.filter((value) => value !== status)
+                          : [...current, status]
+                      )
+                    }
+                  />
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.groupLabel}>Importance</Text>
+            <View style={styles.filterWrapRow}>
+              {([1, 2, 3] as MemoryImportance[]).map((importance) => {
+                const active = selectedImportance.includes(importance);
+                return (
+                  <FilterPill
+                    key={importance}
+                    label={getMemoryImportanceLabel(importance)}
+                    active={active}
+                    onPress={() =>
+                      setSelectedImportance((current) =>
+                        current.includes(importance)
+                          ? current.filter((value) => value !== importance)
+                          : [...current, importance]
+                      )
+                    }
+                  />
+                );
+              })}
             </View>
           </View>
 
