@@ -18,6 +18,12 @@ Notes:
 - The primary development runtime is now an installed Expo Development Build, not Expo Go.
 - The current implementation still uses `memory` as the storage and service term, but the product direction is broadening toward a more general life-memory platform.
 
+## Future private web companion boundary
+
+The roadmap includes an un-numbered future side quest for a personal browser companion focused only on diary entries. The intended first web slice should reuse Supabase auth, `memoryService`, search, collections, metadata, and text writing where practical, while explicitly excluding photo/video attachments, NAS browsing and relinking, native reminders, and mobile diagnostics.
+
+The web companion is not currently implemented. If it is built, browser-safe Supabase session persistence and browser download handling will be separate platform seams. The browser should not receive credentials intended to protect the NAS Photo API.
+
 ## Development runtime model
 
 - Daily development target

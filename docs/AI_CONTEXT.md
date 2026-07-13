@@ -71,6 +71,7 @@ Current next-phase plan:
 - Phase 19.2 now adds `memory_metadata_suggestions`: user-triggered text-based AI suggestions are matched against confirmed archive vocabulary where possible, then remain pending until individually approved or dismissed. Approving a suggestion is the only path that promotes it into confirmed tags or metadata.
 - The next Phase 19 slice should build the user-started and assistant-proposed draft lifecycle, still preserving approval and provenance boundaries.
 - The next print-focused step should still live in a separate local companion workflow that reads the Tiny Chapters export, resolves actual photo files, and assembles print-ready output.
+- A separate un-numbered side quest is parked for later: a private, diary-only browser companion. It should reuse the existing Supabase and memory-service seams, exclude all media/NAS/native-reminder behavior, and not be treated as current implementation work.
 
 ## Tech stack
 

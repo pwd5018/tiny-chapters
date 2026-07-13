@@ -197,6 +197,19 @@ Future Codex sessions should check this file first when planning work. Mark phas
   Power-user NAS/private archive support with possible cloud relay later.
 - Phase 27: Beta Readiness / Install-on-Phone Validation
   Broader beta-style validation after Android and first-pass iPhone dev-build workflows are stable: test permissions, notifications, NAS/Tailscale flows, offline/failure behavior, install polish, and performance.
+- Side quest (un-numbered): Private Web Diary Companion
+  Planned as a personal desktop/browser surface for diary entries only. Reuse the existing Supabase auth, memory service, search, collections, metadata, and writing seams where practical.
+  Explicitly out of scope for the first web slice:
+  - photo, video, and other media attachments
+  - NAS Photo API browsing, relinking, and direct Photo API credentials in the browser
+  - native reminders and mobile diagnostics
+  - public multi-user product or separate cloud photo storage
+  Suggested first slice:
+  1. Browser-safe Supabase session persistence and web entrypoint.
+  2. Today prompt, text-only diary writing, and save/edit/delete flows.
+  3. Diary browsing/search plus lightweight collection and metadata support.
+  4. Browser downloads for JSON/Markdown export.
+  5. Basic private/local validation before deciding whether a hosted deployment is worthwhile.
 - Phase 28: Polish and Release Prep
   Onboarding, app icon/splash, empty states, error messages, and later store readiness.
 
