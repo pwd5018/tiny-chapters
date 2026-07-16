@@ -43,7 +43,7 @@ export function MemoryMetadataSuggestionsCard({
         <View style={styles.headerCopy}>
           <Text style={styles.title}>AI suggestions</Text>
           <Text style={styles.helper}>
-            Tiny Chapters can suggest details from these words and reuse names already confirmed in your archive. Nothing changes until you approve it.
+            Tiny Chapters only offers details that may help you find this chapter later, and reuses names already confirmed in your archive. Nothing changes until you approve it.
           </Text>
         </View>
         <Pressable
@@ -74,7 +74,7 @@ export function MemoryMetadataSuggestionsCard({
                   <Text style={styles.note}>
                     {suggestion.matchedValue
                       ? `Matches existing ${getFieldLabel(suggestion.field).toLowerCase()}: ${suggestion.matchedValue}`
-                      : `New suggestion · ${suggestion.confidence}% confidence`}
+                      : "New archive suggestion"}
                   </Text>
                 </View>
                 <View style={styles.actions}>

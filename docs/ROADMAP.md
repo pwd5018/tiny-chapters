@@ -171,7 +171,7 @@ Future Codex sessions should check this file first when planning work. Mark phas
   1. `memory_metadata` now exists as an additive sidecar seam for confirmed metadata and lifecycle state without changing the primary `memories` table.
   2. Write and chapter detail now support lightweight user-confirmed metadata capture for favorite status, importance, people, places, projects, topics, tags, and draft/finalized state.
   3. Search and export now understand that confirmed metadata and lifecycle state as first-class archive structure rather than only free text.
-  4. Phase 19.2 now keeps AI-generated people, places, projects, topics, and tags in `memory_metadata_suggestions` until the user approves or dismisses each one. The gateway receives confirmed archive vocabulary first so it can reuse existing values before proposing a new one.
+  4. Phase 19.2 now keeps AI-generated people, places, projects, topics, and tags in `memory_metadata_suggestions` until the user approves or dismisses each one. The gateway receives confirmed archive vocabulary first so it can reuse existing values before proposing a new one, and is deliberately conservative: it can return none, caps output at three durable retrieval labels, and omits incidental moods, symptoms, and routine details.
   Planned slices:
   1. confirmed metadata seams — completed as Phase 19.1
   2. inferred metadata suggestions — completed as Phase 19.2

@@ -93,7 +93,7 @@ type MemoryRepository = {
   deleteMemory: (id: string) => Promise<void>;
   updateMemoryPhotoRefs: (memoryId: string, attachedPhotos: Memory["attachedPhotos"]) => Promise<void>;
   getMemoryMetadataSuggestions: (memoryId: string) => Promise<MemoryMetadataSuggestion[]>;
-  generateMemoryMetadataSuggestions: (memory: Memory) => Promise<MemoryMetadataSuggestion[]>;
+  generateMemoryMetadataSuggestions: (memoryId: string) => Promise<MemoryMetadataSuggestion[]>;
   approveMemoryMetadataSuggestion: (suggestionId: string) => Promise<Memory>;
   rejectMemoryMetadataSuggestion: (suggestionId: string) => Promise<void>;
   searchMemories: (queryOrFilters: string | MemorySearchFilters) => Promise<Memory[]>;
@@ -142,6 +142,21 @@ function toSuggestionFieldMetadataKey(field: MemoryMetadataSuggestionField) {
       return "topics";
     case "tag":
       return null;
+  }
+}
+
+function getConfirmedSuggestionValues(memory: Memory, field: MemoryMetadataSuggestionField) {
+  switch (field) {
+    case "tag":
+      return memory.tags;
+    case "person":
+      return memory.metadata.people;
+    case "place":
+      return memory.metadata.places;
+    case "project":
+      return memory.metadata.projects;
+    case "topic":
+      return memory.metadata.topics;
   }
 }
 
@@ -1145,6 +1160,16 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       await setMemoryCollectionMemberships(id, input.collectionIds);
     }
 
+    const { error: clearSuggestionError } = await supabase
+      .from("memory_metadata_suggestions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("memory_id", id)
+      .eq("status", "pending");
+    if (clearSuggestionError) {
+      throw clearSuggestionError;
+    }
+
     const memory = await getMemoryById(id);
     if (!memory) {
       throw new Error("Memory was updated but could not be reloaded.");
@@ -1189,9 +1214,14 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
   const getMemoryMetadataSuggestions = async (memoryId: string) =>
     fetchMetadataSuggestionsByMemoryId(memoryId);
 
-  const generateMemoryMetadataSuggestions = async (memory: Memory) => {
+  const generateMemoryMetadataSuggestions = async (memoryId: string) => {
     if (!isAiGatewayConfigured()) {
       throw new Error("AI suggestions need the local AI gateway to be configured.");
+    }
+
+    const memory = await getMemoryById(memoryId);
+    if (!memory) {
+      throw new Error("The chapter could not be reloaded before generating suggestions.");
     }
 
     const allMemories = await getMemories();
@@ -1204,6 +1234,10 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     };
 
     for (const candidate of allMemories) {
+      if (candidate.id === memory.id) {
+        continue;
+      }
+
       fieldValues.tag.push(...candidate.tags);
       fieldValues.person.push(...candidate.metadata.people);
       fieldValues.place.push(...candidate.metadata.places);
@@ -1220,7 +1254,6 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       ])
     ) as MetadataSuggestionVocabulary;
     const result = await generateMetadataSuggestionsWithAi({
-      prompt: memory.prompt,
       text: memory.text,
       vocabulary,
     });
@@ -1260,11 +1293,21 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
           normalizeSuggestionValue(candidate) ===
           normalizeSuggestionValue(suggestion.matchedValue ?? value)
       );
+      const confirmedValues = getConfirmedSuggestionValues(memory, suggestion.field);
+      const proposedValue = canonicalMatch ?? value;
+      const isAlreadyConfirmed = confirmedValues.some(
+        (confirmedValue) =>
+          normalizeSuggestionValue(confirmedValue) === normalizeSuggestionValue(proposedValue)
+      );
+      if (isAlreadyConfirmed) {
+        continue;
+      }
+
       rows.push({
         memory_id: memory.id,
         user_id: userId,
         field: suggestion.field,
-        value: canonicalMatch ?? value,
+        value: proposedValue,
         matched_value: canonicalMatch ?? null,
         confidence: Math.max(0, Math.min(100, Math.round(suggestion.confidence))),
         provider: result.provider,

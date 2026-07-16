@@ -29,6 +29,7 @@ export type AiMetadataSuggestion = {
   value: string;
   confidence: number;
   matchedValue: string | null;
+  evidence: string;
 };
 
 type MetadataSuggestionsGatewayResponse = {
@@ -158,7 +159,10 @@ export async function polishGuidedMemoryWithAi(draft: GuidedMemoryDraft) {
         composedText: draft.composedText,
         followUps: draft.followUps
           .filter((followUp) => followUp.status === "answered" && followUp.answer.trim())
-          .map((followUp) => followUp.answer.trim()),
+          .map((followUp) => ({
+            question: followUp.question.trim(),
+            answer: followUp.answer.trim(),
+          })),
       }),
     });
 
@@ -176,7 +180,6 @@ export async function polishGuidedMemoryWithAi(draft: GuidedMemoryDraft) {
 }
 
 export async function generateMetadataSuggestionsWithAi(input: {
-  prompt: string;
   text: string;
   vocabulary: MetadataSuggestionVocabulary;
 }) {

@@ -34,6 +34,22 @@ function getMetadataVocabulary(value: unknown): Record<MetadataSuggestionField, 
   ) as Record<MetadataSuggestionField, string[]>;
 }
 
+function getPolishFollowUps(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as Array<{ question: string; answer: string }>;
+  }
+
+  return value
+    .map((item) => {
+      const record = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      return {
+        question: getStringField(record.question),
+        answer: getStringField(record.answer),
+      };
+    })
+    .filter((followUp) => followUp.question && followUp.answer);
+}
+
 export function createAiRouter() {
   const router = express.Router();
 
@@ -112,12 +128,7 @@ export function createAiRouter() {
     const baseQuestion = getStringField(req.body?.baseQuestion);
     const originalAnswer = getStringField(req.body?.originalAnswer);
     const composedText = getStringField(req.body?.composedText);
-    const followUps = Array.isArray(req.body?.followUps)
-      ? req.body.followUps
-          .filter((value: unknown): value is string => typeof value === "string")
-          .map((value: string) => value.trim())
-          .filter(Boolean)
-      : [];
+    const followUps = getPolishFollowUps(req.body?.followUps);
 
     if (!baseQuestion || !originalAnswer || !composedText) {
       res.status(400).json({
@@ -145,7 +156,6 @@ export function createAiRouter() {
   });
 
   router.post("/ai/metadata-suggestions", async (req, res) => {
-    const prompt = getStringField(req.body?.prompt);
     const text = getStringField(req.body?.text);
     const vocabulary = getMetadataVocabulary(req.body?.vocabulary);
 
@@ -155,7 +165,7 @@ export function createAiRouter() {
     }
 
     try {
-      const result = await generateAiMetadataSuggestions(prompt, text, vocabulary);
+      const result = await generateAiMetadataSuggestions(text, vocabulary);
       res.json(result);
     } catch (error) {
       if (error instanceof AiGatewayError) {

@@ -24,17 +24,10 @@ function ensureSentenceEnding(value: string) {
   return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
-function compactFollowUpAnswers(draft: GuidedMemoryDraft) {
-  return draft.followUps
-    .filter((followUp) => followUp.status === "answered" && followUp.answer.trim())
-    .map((followUp) => normalizeFragment(followUp.answer));
-}
-
 export function polishGuidedMemoryDraftLocally(draft: GuidedMemoryDraft) {
   const original = normalizeFragment(draft.originalAnswer);
   const composed = normalizeFragment(draft.composedText);
-  const answeredFollowUps = compactFollowUpAnswers(draft);
-  const base = composed || original;
+  const base = original || composed;
 
   if (!base) {
     return "";
@@ -42,26 +35,5 @@ export function polishGuidedMemoryDraftLocally(draft: GuidedMemoryDraft) {
 
   const firstSentence = ensureSentenceEnding(ensureSentenceCase(base));
 
-  if (!answeredFollowUps.length) {
-    return firstSentence;
-  }
-
-  const shortFragments = answeredFollowUps.filter((answer) => answer.split(/\s+/).length <= 4);
-  const longFragments = answeredFollowUps.filter((answer) => answer.split(/\s+/).length > 4);
-
-  const detailParts: string[] = [];
-
-  if (shortFragments.length) {
-    detailParts.push(`Details I want to keep: ${shortFragments.join(", ")}`);
-  }
-
-  if (longFragments.length) {
-    detailParts.push(...longFragments);
-  }
-
-  const detailSentence = ensureSentenceEnding(
-    ensureSentenceCase(detailParts.join(". ").replace(/\.\s+\./g, "."))
-  );
-
-  return [firstSentence, detailSentence].filter(Boolean).join(" ");
+  return firstSentence;
 }

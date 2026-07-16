@@ -20,6 +20,11 @@ type PolishResult = {
   model: string;
 };
 
+type PolishFollowUp = {
+  question: string;
+  answer: string;
+};
+
 type MetadataSuggestionField = "tag" | "person" | "place" | "project" | "topic";
 
 type MetadataSuggestionResult = {
@@ -28,6 +33,7 @@ type MetadataSuggestionResult = {
     value: string;
     confidence: number;
     matchedValue: string | null;
+    evidence: string;
   }>;
   provider: AiProviderName;
   model: string;
@@ -110,7 +116,54 @@ function parsePolishedTextFromText(rawText: string) {
   return polishedText;
 }
 
-function parseMetadataSuggestionsFromText(rawText: string) {
+function isDurableMetadataSuggestion(
+  field: MetadataSuggestionField,
+  value: string
+) {
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
+  const wordCount = normalized.split(" ").filter(Boolean).length;
+
+  if (wordCount > 3) {
+    return false;
+  }
+
+  if (field !== "tag" && field !== "topic") {
+    return true;
+  }
+
+  const incidentalValues = new Set([
+    "day",
+    "week",
+    "feeling",
+    "good mood",
+    "feeling good",
+    "sore throat",
+    "headache",
+    "cough",
+    "cold",
+    "fever",
+    "fatigue",
+    "tired",
+    "sick",
+    "illness",
+  ]);
+
+  return (
+    !incidentalValues.has(normalized) &&
+    !normalized.startsWith("feeling ") &&
+    !normalized.startsWith("felt ")
+  );
+}
+
+function normalizeEvidence(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseMetadataSuggestionsFromText(rawText: string, sourceText: string) {
   const parsed = JSON.parse(extractJsonBlock(rawText)) as Record<string, unknown>;
   const allowedFields = new Set<MetadataSuggestionField>([
     "tag",
@@ -140,8 +193,16 @@ function parseMetadataSuggestionsFromText(rawText: string) {
         ? record.matchedValue.trim()
         : null;
     const rawConfidence = typeof record.confidence === "number" ? record.confidence : 0;
+    const evidence = typeof record.evidence === "string" ? record.evidence.trim() : "";
+    const normalizedEvidence = normalizeEvidence(evidence);
 
-    if (!allowedFields.has(field as MetadataSuggestionField) || !value) {
+    if (
+      !allowedFields.has(field as MetadataSuggestionField) ||
+      !value ||
+      !normalizedEvidence ||
+      !normalizeEvidence(sourceText).includes(normalizedEvidence) ||
+      !isDurableMetadataSuggestion(field as MetadataSuggestionField, value)
+    ) {
       continue;
     }
 
@@ -156,9 +217,10 @@ function parseMetadataSuggestionsFromText(rawText: string) {
       value,
       matchedValue,
       confidence: Math.max(0, Math.min(100, Math.round(rawConfidence))),
+      evidence,
     });
 
-    if (suggestions.length >= 12) {
+    if (suggestions.length >= 3) {
       break;
     }
   }
@@ -323,7 +385,7 @@ function createPolishPrompt(
   baseQuestion: string,
   originalAnswer: string,
   composedText: string,
-  followUps: string[]
+  followUps: PolishFollowUp[]
 ) {
   return [
     "You are helping a private family memory app.",
@@ -332,36 +394,45 @@ function createPolishPrompt(
     "Rules:",
     "- Rewrite the memory into 1 or 2 short natural sentences.",
     "- Keep the meaning grounded in the user's words.",
-    "- Preserve specificity from short fragments when helpful.",
-    "- Do not invent facts.",
+    "- The original answer establishes the main event and its participants. Preserve those roles exactly unless a follow-up explicitly changes them.",
+    "- Each follow-up answer belongs only to its paired question. Use the question to resolve a short answer such as who watched, but never transfer that answer to the people in the main event.",
+    "- The current draft may contain raw fragments. Do not treat it as an already coherent sentence or merge fragments merely because they are adjacent.",
+    "- If a follow-up is incomplete or its relationship is unclear, omit it instead of inventing a connection.",
+    "- Do not invent facts, participants, feelings, or actions.",
     "- Do not sound corporate or sentimentalized.",
     "- No preamble, no markdown, no explanation.",
     `Base question: ${baseQuestion}`,
     `Original answer: ${originalAnswer}`,
     `Current draft: ${composedText}`,
-    `Follow-up answers: ${followUps.join(" | ") || "None"}`,
+    `Follow-ups with their questions: ${
+      followUps.map((followUp) => `Q: ${followUp.question} A: ${followUp.answer}`).join(" | ") ||
+      "None"
+    }`,
   ].join("\n");
 }
 
 function createMetadataSuggestionsPrompt(
-  prompt: string,
   text: string,
   vocabulary: MetadataSuggestionVocabulary
 ) {
   return [
-    "You are helping a private life-memory app organize one user-authored chapter.",
+    "You are a careful archive curator for a private life-memory app, not a keyword extractor.",
     "Return only JSON.",
-    'Schema: {"suggestions":[{"field":"tag|person|place|project|topic","value":"...","confidence":0,"matchedValue":"... or null"}]}',
+    'Schema: {"suggestions":[{"field":"tag|person|place|project|topic","value":"...","confidence":0,"matchedValue":"... or null","evidence":"exact quote"}]}',
     "Rules:",
-    "- Suggest only details directly supported by the chapter text or prompt. Do not guess.",
-    "- Return at most 12 useful suggestions total, and omit uncertain suggestions.",
-    "- confidence is an integer from 0 to 100.",
+    "- Use only the chapter text below. Do not infer metadata from the writing prompt or from existing vocabulary alone.",
+    "- Every suggestion needs evidence: copy a contiguous one-to-eight-word quote from the chapter text into evidence. If no exact quote supports it, omit the suggestion.",
+    "- It is valid, and preferred, to return an empty suggestions array for a small or incidental entry.",
+    "- Return at most 3 suggestions total. Each must be useful for finding this chapter months later, not merely a phrase that appears in it.",
+    "- confidence is an integer from 0 to 100 measuring durable archive relevance, not certainty that words were mentioned.",
     "- First try to match an existing value in the same field. If one is a clear match, copy it exactly into matchedValue and value.",
     "- If no existing value is a clear match, set matchedValue to null and use a concise new value.",
+    "- Suggest people, places, or projects only when specifically named and meaningfully central to the chapter.",
+    "- Suggest a topic only when it is a broad, durable theme that substantially shapes the chapter. A passing mention does not qualify.",
+    "- Never suggest moods, feelings, wellness states, physical symptoms, minor illnesses, routine chores, appointments, generic day/week reflections, or complete phrases as tags or topics.",
     "- Do not create a person merely from a generic role such as mom, dad, friend, or teacher unless the text names them.",
-    "- Do not turn dates, feelings, or complete sentences into tags.",
+    "- Values should normally be one to three words.",
     "- No preamble, no markdown, no explanation.",
-    `Prompt: ${prompt || "None"}`,
     `Chapter text: ${text}`,
     `Existing tags: ${vocabulary.tag.join(" | ") || "None"}`,
     `Existing people: ${vocabulary.person.join(" | ") || "None"}`,
@@ -592,7 +663,7 @@ export async function generateAiPolish(
   baseQuestion: string,
   originalAnswer: string,
   composedText: string,
-  followUps: string[]
+  followUps: PolishFollowUp[]
 ): Promise<PolishResult> {
   const prompt = createPolishPrompt(baseQuestion, originalAnswer, composedText, followUps);
   const result = await callProvider(prompt);
@@ -606,14 +677,13 @@ export async function generateAiPolish(
 }
 
 export async function generateAiMetadataSuggestions(
-  prompt: string,
   text: string,
   vocabulary: MetadataSuggestionVocabulary
 ): Promise<MetadataSuggestionResult> {
-  const result = await callProvider(createMetadataSuggestionsPrompt(prompt, text, vocabulary));
+  const result = await callProvider(createMetadataSuggestionsPrompt(text, vocabulary));
 
   return {
-    suggestions: parseMetadataSuggestionsFromText(result.text),
+    suggestions: parseMetadataSuggestionsFromText(result.text, text),
     provider: result.provider,
     model: result.model,
   };

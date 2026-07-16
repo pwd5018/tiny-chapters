@@ -340,6 +340,7 @@ export default function MemoryDetailScreen() {
       await updateMemoryPhotoRefs(memory.id, selectedAttachments);
       const reloadedMemory = await getMemoryById(memory.id);
       hydrateDraft(reloadedMemory ?? updatedMemory);
+      setMetadataSuggestions([]);
       setIsEditing(false);
       setSaveMessage("Changes saved.");
     } catch (error) {
@@ -359,12 +360,12 @@ export default function MemoryDetailScreen() {
     setSaveMessage("");
 
     try {
-      const suggestions = await generateMemoryMetadataSuggestions(memory);
+      const suggestions = await generateMemoryMetadataSuggestions(memory.id);
       setMetadataSuggestions(suggestions);
       setSaveMessage(
         suggestions.length
           ? "Suggestions are ready for your review."
-          : "No confident details were suggested from this chapter."
+          : "No durable details were suggested from this chapter."
       );
     } catch (error) {
       setErrorMessage(
