@@ -17,9 +17,11 @@ create table if not exists photo_assets (
 );
 
 create index if not exists photo_assets_taken_at_idx on photo_assets (taken_at);
+create index if not exists photo_assets_active_taken_at_idx on photo_assets (is_missing, taken_at);
 create index if not exists photo_assets_content_hash_idx on photo_assets (content_hash);
 create index if not exists photo_assets_is_missing_idx on photo_assets (is_missing);
 create index if not exists photo_assets_current_path_idx on photo_assets (current_path);
+create index if not exists photo_assets_active_path_idx on photo_assets (is_missing, current_path);
 
 create table if not exists scan_runs (
   id text primary key,

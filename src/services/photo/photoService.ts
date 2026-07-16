@@ -42,6 +42,18 @@ export async function getPhotoById(photoId: string) {
   return getActiveProvider().getPhotoById(photoId);
 }
 
+export function getPhotoPreviewUrls(photoId: string) {
+  if (getActivePhotoSourceMode() !== "nas" || !nasPhotoApiBaseUrl) {
+    return null;
+  }
+
+  const encodedPhotoId = encodeURIComponent(photoId);
+  return {
+    thumbnailUrl: `${nasPhotoApiBaseUrl.replace(/\/+$/, "")}/photos/${encodedPhotoId}/thumb`,
+    viewUrl: `${nasPhotoApiBaseUrl.replace(/\/+$/, "")}/photos/${encodedPhotoId}/view`,
+  };
+}
+
 export function getActivePhotoSourceMode(): PhotoSourceMode {
   if (photoSourceMode === "device") {
     return "device";

@@ -148,64 +148,74 @@ function toLocalDateString(isoString: string) {
   return `${year}-${month}-${day}`;
 }
 
-function paginateRecords(records: PhotoAssetRecord[], limit: number, offset: number) {
-  return {
-    items: records.slice(offset, offset + limit),
-    limit,
-    offset,
-    total: records.length,
-    hasMore: offset + limit < records.length,
-  };
+function getLocalDateBoundary(dateKey: string, dayOffset = 0) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day + dayOffset).toISOString();
+}
+
+function escapeLike(value: string) {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
+function buildPhotoFilters(params: PhotoSearchParams) {
+  const clauses = ["is_missing = 0"];
+  const values: Array<string | number> = [];
+
+  if (params.date) {
+    clauses.push("taken_at >= ?", "taken_at < ?");
+    values.push(getLocalDateBoundary(params.date), getLocalDateBoundary(params.date, 1));
+  }
+  if (params.from) {
+    clauses.push("taken_at >= ?");
+    values.push(getLocalDateBoundary(params.from));
+  }
+  if (params.to) {
+    clauses.push("taken_at < ?");
+    values.push(getLocalDateBoundary(params.to, 1));
+  }
+
+  const normalizedQuery = params.q?.trim().toLowerCase();
+  if (normalizedQuery) {
+    const pattern = `%${escapeLike(normalizedQuery)}%`;
+    clauses.push("(lower(filename) like ? escape '\\' or lower(current_path) like ? escape '\\')");
+    values.push(pattern, pattern);
+  }
+
+  return { where: clauses.join(" and "), values };
 }
 
 export function searchPhotos(params: PhotoSearchParams) {
-  const normalizedQuery = params.q?.trim().toLowerCase() ?? "";
-  const filtered = getAllActivePhotos()
-    .filter((record) => {
-      const localDate = toLocalDateString(record.taken_at);
+  const { where, values } = buildPhotoFilters(params);
+  const total = (db.prepare(`select count(*) as count from photo_assets where ${where}`).get(...values) as { count: number }).count;
+  const items = db
+    .prepare(`select * from photo_assets where ${where} order by taken_at desc limit ? offset ?`)
+    .all(...values, params.limit, params.offset) as PhotoAssetRecord[];
 
-      if (params.date && localDate !== params.date) {
-        return false;
-      }
-
-      if (params.from && localDate < params.from) {
-        return false;
-      }
-
-      if (params.to && localDate > params.to) {
-        return false;
-      }
-
-      if (!normalizedQuery) {
-        return true;
-      }
-
-      return (
-        record.filename.toLowerCase().includes(normalizedQuery) ||
-        record.current_path.toLowerCase().includes(normalizedQuery)
-      );
-    })
-    .sort((left, right) => right.taken_at.localeCompare(left.taken_at));
-
-  return paginateRecords(filtered, params.limit, params.offset);
+  return {
+    items,
+    limit: params.limit,
+    offset: params.offset,
+    total,
+    hasMore: params.offset + params.limit < total,
+  };
 }
 
 export function getPhotosInFolder(folderPath: string, limit: number, offset: number) {
   const normalizedFolderPath = folderPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
   const folderPrefix = normalizedFolderPath ? `${normalizedFolderPath}/` : "";
-  const filtered = getAllActivePhotos()
-    .filter((record) => {
-      const normalizedPath = record.current_path.replace(/\\/g, "/").toLowerCase();
+  const clauses = ["is_missing = 0"];
+  const values: string[] = [];
+  if (normalizedFolderPath) {
+    clauses.push("lower(replace(current_path, char(92), '/')) like ? escape '\\'");
+    values.push(`${escapeLike(folderPrefix)}%`);
+  }
+  const where = clauses.join(" and ");
+  const total = (db.prepare(`select count(*) as count from photo_assets where ${where}`).get(...values) as { count: number }).count;
+  const items = db
+    .prepare(`select * from photo_assets where ${where} order by taken_at desc limit ? offset ?`)
+    .all(...values, limit, offset) as PhotoAssetRecord[];
 
-      if (!normalizedFolderPath) {
-        return true;
-      }
-
-      return normalizedPath.startsWith(folderPrefix);
-    })
-    .sort((left, right) => right.taken_at.localeCompare(left.taken_at));
-
-  return paginateRecords(filtered, limit, offset);
+  return { items, limit, offset, total, hasMore: offset + limit < total };
 }
 
 export function getPhotoCounts() {

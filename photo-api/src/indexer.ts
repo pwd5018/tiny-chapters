@@ -33,6 +33,7 @@ function newScanRunId() {
 }
 
 const PROGRESS_FLUSH_INTERVAL = 100;
+const INDEX_CONCURRENCY = 4;
 
 async function sha256ForFile(filePath: string) {
   const hash = crypto.createHash("sha256");
@@ -141,7 +142,7 @@ export async function runScan(mode: ScanMode = "incremental") {
 
     const seenIds = new Set<string>();
 
-    for (const absolutePath of matches) {
+    async function processPhoto(absolutePath: string) {
       summary.scanned += 1;
 
       try {
@@ -210,6 +211,27 @@ export async function runScan(mode: ScanMode = "incremental") {
         logInfo("Photo scan progress checkpoint.", summary);
       }
     }
+
+    let nextMatchIndex = 0;
+    async function processNextMatch() {
+      while (true) {
+        const matchIndex = nextMatchIndex;
+        nextMatchIndex += 1;
+
+        if (matchIndex >= matches.length) {
+          return;
+        }
+
+        await processPhoto(matches[matchIndex]);
+      }
+    }
+
+    await Promise.all(
+      Array.from(
+        { length: Math.min(INDEX_CONCURRENCY, matches.length) },
+        () => processNextMatch()
+      )
+    );
 
     const allKnownIds = getAllPhotoIds();
     const timestamp = nowIso();

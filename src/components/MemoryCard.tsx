@@ -9,7 +9,11 @@ import {
   getAttachedPhotoPreviewUri,
   summarizeAttachedPhotoStatuses,
 } from "@/services/photo/photoDurability";
-import { getPhotoById, getPhotoImageSource } from "@/services/photo/photoService";
+import {
+  getPhotoById,
+  getPhotoImageSource,
+  getPhotoPreviewUrls,
+} from "@/services/photo/photoService";
 import { theme } from "@/theme/theme";
 import type { AttachedPhotoRef, Memory } from "@/types/memory";
 
@@ -67,6 +71,17 @@ export function MemoryCard({ memory }: { memory: Memory }) {
               id: photoRef.photoId,
               kind: mediaKind,
               thumbnailUrl: null,
+              durationMs: photoRef.durationMs,
+            };
+          }
+
+          const previewUrls = getPhotoPreviewUrls(photoRef.photoId);
+          if (previewUrls) {
+            return {
+              id: photoRef.photoId,
+              kind: mediaKind,
+              thumbnailUrl: previewUrls.thumbnailUrl,
+              viewUrl: previewUrls.viewUrl,
               durationMs: photoRef.durationMs,
             };
           }

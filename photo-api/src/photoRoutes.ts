@@ -233,6 +233,8 @@ export function createPhotoRouter(version: string) {
     });
   });
 
+  router.use(requireApiKey);
+
   router.get("/photos/:photoId", (req, res, next) => {
     if (req.params.photoId === "search" || req.params.photoId === "match") {
       next();
@@ -279,8 +281,6 @@ export function createPhotoRouter(version: string) {
 
     res.sendFile(record.current_path);
   });
-
-  router.use(requireApiKey);
 
   router.get("/status", async (_req, res) => {
     const payload = await getStatusPayload();

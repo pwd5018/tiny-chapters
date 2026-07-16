@@ -347,18 +347,21 @@ Operational behavior implemented now:
 
 - Bearer-token auth for all routes except `/health`
 - SQLite-backed photo index and scan history
+- SQL-backed filtering, sorting, counting, and pagination for photo search and folder browsing
 - EXIF/date extraction with fallbacks
 - Stable IDs derived from content hashes
 - Missing-file tracking instead of immediate destructive deletion
 - Overlap protection for scans
 - Root reachability checks
 - Scheduled/background scan support inside the service process
+- Bounded concurrent file processing during scans, with progress checkpoints and scan overlap protection
 - CLI `scan` and `status` entry points
 
 ## Thumbnail strategy
 
 - Thumbnails are generated and served by the Photo API.
 - Thumbnails are cached locally by the Photo API under `THUMBNAIL_CACHE_DIR`.
+- Concurrent requests for the same uncached thumbnail share one in-flight generation.
 - Thumbnails are not stored in Supabase.
 - The mobile app displays Photo API URLs and attaches bearer auth headers when needed.
 

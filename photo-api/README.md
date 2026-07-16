@@ -84,6 +84,8 @@ What this means:
 
 So a follow-up scan does not need to fully re-hash every previously indexed file.
 
+Search and folder browsing apply filtering, sorting, counting, and pagination in SQLite rather than loading the entire active catalog into Node memory. Changed files are processed with bounded concurrency to reduce NAS idle time without allowing an unbounded request fan-out.
+
 ## Verify endpoints
 
 Health check without auth:
@@ -91,6 +93,8 @@ Health check without auth:
 ```powershell
 curl http://localhost:5055/health
 ```
+
+All photo, folder, status, scan, and match endpoints require the bearer token. The health endpoint is intentionally public so a device can perform a basic reachability check before sending credentials.
 
 Status with auth:
 
