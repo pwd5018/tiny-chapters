@@ -69,6 +69,7 @@ export type MemorySearchFilters = {
   importance?: MemoryImportance[];
   photoStatuses?: AttachedPhotoSyncStatus[];
   entityIds?: string[];
+  entityFilterMode?: "any" | "all";
 };
 
 export type MemoryRetrievalQuery = MemorySearchFilters & {
@@ -157,6 +158,21 @@ function normalizeEntityValue(value: string) {
   return normalizeSuggestionValue(value);
 }
 
+function getRetrievalMatchScore(matches: MemoryRetrievalMatch[]) {
+  return matches.reduce((score, match) => {
+    switch (match.type) {
+      case "canonical_entity":
+        return score + 100;
+      case "alias":
+        return score + 90;
+      case "entity_filter":
+        return score + 80;
+      case "text":
+        return score + 50;
+    }
+  }, 0);
+}
+
 function toSuggestionFieldMetadataKey(field: MemoryMetadataSuggestionField) {
   switch (field) {
     case "person":
@@ -235,6 +251,7 @@ function normalizeSearchFilters(queryOrFilters: string | MemorySearchFilters): M
     importance: normalizeSearchImportance(queryOrFilters.importance),
     photoStatuses: [...new Set(queryOrFilters.photoStatuses ?? [])],
     entityIds: normalizeSearchEntityIds(queryOrFilters.entityIds),
+    entityFilterMode: queryOrFilters.entityFilterMode === "all" ? "all" : "any",
   };
 }
 
@@ -276,7 +293,8 @@ function matchesQuery(memory: Memory, normalizedQuery: string) {
 function matchesStructuredFilters(
   memory: Memory,
   filters: MemorySearchFilters,
-  entityMemoryIds?: Set<string>
+  entityMemoryIds?: Set<string>,
+  entityIdsByMemoryId?: Map<string, string[]>
 ) {
   const memoryDate = memory.date.slice(0, 10);
 
@@ -308,8 +326,15 @@ function matchesStructuredFilters(
     }
   }
 
-  if (filters.entityIds?.length && !entityMemoryIds?.has(memory.id)) {
-    return false;
+  if (filters.entityIds?.length) {
+    if (filters.entityFilterMode === "all") {
+      const memoryEntityIds = new Set(entityIdsByMemoryId?.get(memory.id) ?? []);
+      if (!filters.entityIds.every((entityId) => memoryEntityIds.has(entityId))) {
+        return false;
+      }
+    } else if (!entityMemoryIds?.has(memory.id)) {
+      return false;
+    }
   }
 
   if (filters.hasPhotos === true && !memory.attachedPhotos.length) {
@@ -1760,10 +1785,16 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     const results = allMemories.flatMap((memory) => {
       const textMatch = Boolean(normalizedQuery) && matchesQuery(memory, normalizedQuery);
       const queryEntityMatch = queryEntityMemoryIds.has(memory.id);
+      const selectedEntityMatch = filterEntityMemoryIds.has(memory.id);
       const hasSearchCriteria = Boolean(normalizedQuery) || Boolean(filters.entityIds?.length);
       if (
-        (hasSearchCriteria && !textMatch && !queryEntityMatch) ||
-        !matchesStructuredFilters(memory, filters, filterEntityMemoryIds)
+        (hasSearchCriteria && !textMatch && !queryEntityMatch && !selectedEntityMatch) ||
+        !matchesStructuredFilters(
+          memory,
+          filters,
+          filterEntityMemoryIds,
+          entityIdsByMemoryId
+        )
       ) {
         return [];
       }
@@ -1808,7 +1839,42 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      return [{ memory, matches }];
+      const matchedBy = [...new Set(matches.map((match) => match.type))];
+      const context = {
+        source: "tiny_chapters_archive" as const,
+        memoryId: memory.id,
+        deepLink: `/memory/${memory.id}`,
+        lifecycleStatus: memory.metadata.lifecycleStatus,
+        trustLevel:
+          memory.metadata.lifecycleStatus === "draft"
+            ? ("user_authored_draft" as const)
+            : ("user_authored_finalized" as const),
+        matchedBy,
+        entityIds: matches
+          .map((match) => match.entityId)
+          .filter((entityId): entityId is string => Boolean(entityId)),
+      };
+
+      return [{ memory, matches, score: getRetrievalMatchScore(matches), context }];
+    });
+
+    results.sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      const dateDifference = new Date(right.memory.date).getTime() - new Date(left.memory.date).getTime();
+      if (dateDifference !== 0) {
+        return dateDifference;
+      }
+
+      const createdDifference =
+        new Date(right.memory.createdAt).getTime() - new Date(left.memory.createdAt).getTime();
+      if (createdDifference !== 0) {
+        return createdDifference;
+      }
+
+      return left.memory.id.localeCompare(right.memory.id);
     });
 
     const offset = Math.max(0, Math.floor(retrievalOptions.offset ?? 0));

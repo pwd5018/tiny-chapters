@@ -217,6 +217,8 @@ Completed Phase 19 outcome:
 - inferred or AI-generated metadata still does not belong in the durable confirmed seam without explicit approval
 - `memory_metadata_suggestions` holds user-triggered metadata proposals separately and only copies an approved suggestion into `memories.tags` or `memory_metadata`
 - Phase 20.1 adds `memory_entities`, `memory_entity_aliases`, and `memory_entity_memberships` as an additive canonical vocabulary and retrieval seam. Existing confirmed arrays remain compatible, while canonical names and aliases provide stable matching identities.
+- Phase 20.2 adds deterministic retrieval ranking, limit/offset inputs, explicit Any/All entity-filter semantics, and a stable context projection carrying source, lifecycle trust, match provenance, entity IDs, and a memory deep link. This remains an internal application-service contract until Phase 21 defines authorization.
+- Phase 21 begins the provider boundary above the repository model. `providerTypes.ts` defines the versioned retrieval contract and initial `memories:read` scope; `providerService.ts` owns provider grants, revocation state, and retrieval access-log writes. The `memory_provider_grants` and `memory_provider_access_logs` tables are owner-scoped with RLS. No consumer should call retrieval or read Supabase tables directly until a controlled provider adapter validates an active grant.
 - optional AI polish preserves follow-up question-and-answer pairs so it cannot blend distinct participants or roles; the local fallback retains only unambiguous source text
 - a separate user draft-save workflow is intentionally deferred; assistant-proposed drafts remain a later provider-boundary capability
 

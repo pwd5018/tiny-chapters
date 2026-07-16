@@ -58,6 +58,7 @@ function buildFilterSummary(options: {
   tagFilters: string[];
   selectedCollections: MemoryCollection[];
   selectedEntities: MemoryEntity[];
+  entityFilterMode: "any" | "all";
   fromEnabled: boolean;
   fromDate: string;
   toEnabled: boolean;
@@ -87,7 +88,7 @@ function buildFilterSummary(options: {
 
   if (options.selectedEntities.length) {
     parts.push(
-      `archive vocabulary ${options.selectedEntities.map((entity) => entity.canonicalName).join(", ")}`
+      `archive vocabulary (${options.entityFilterMode}) ${options.selectedEntities.map((entity) => entity.canonicalName).join(", ")}`
     );
   }
 
@@ -177,6 +178,7 @@ export default function SearchScreen() {
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
   const [selectedEntityIds, setSelectedEntityIds] = useState<string[]>([]);
+  const [entityFilterMode, setEntityFilterMode] = useState<"any" | "all">("any");
   const [selectedLifecycleStatuses, setSelectedLifecycleStatuses] = useState<
     MemoryLifecycleStatus[]
   >([]);
@@ -202,6 +204,7 @@ export default function SearchScreen() {
         tagFilters,
         selectedCollections,
         selectedEntities,
+        entityFilterMode,
         fromEnabled,
         fromDate,
         toEnabled,
@@ -225,6 +228,7 @@ export default function SearchScreen() {
       query,
       selectedPhotoStatuses,
       selectedEntities,
+      entityFilterMode,
       tagFilters,
       toDate,
       toEnabled,
@@ -291,6 +295,8 @@ export default function SearchScreen() {
             importance: selectedImportance,
             photoStatuses: selectedPhotoStatuses,
             entityIds: selectedEntityIds,
+            entityFilterMode,
+            limit: 100,
           },
           { vocabulary }
         );
@@ -319,6 +325,7 @@ export default function SearchScreen() {
     query,
     selectedCollectionIds,
     selectedEntityIds,
+    entityFilterMode,
     selectedImportance,
     selectedLifecycleStatuses,
     retrieveMemories,
@@ -353,6 +360,7 @@ export default function SearchScreen() {
     setFavoritesOnly(false);
     setSelectedCollectionIds([]);
     setSelectedEntityIds([]);
+    setEntityFilterMode("any");
     setSelectedLifecycleStatuses([]);
     setSelectedImportance([]);
     setSelectedPhotoStatuses([]);
@@ -495,6 +503,23 @@ export default function SearchScreen() {
                 Confirmed people, places, projects, topics, and tags will appear here as your archive grows.
               </Text>
             )}
+            {selectedEntityIds.length > 1 ? (
+              <View style={styles.entityModeRow}>
+                <Text style={styles.entityGroupLabel}>Selected entities match</Text>
+                <View style={styles.filterRow}>
+                  <FilterPill
+                    label="Any"
+                    active={entityFilterMode === "any"}
+                    onPress={() => setEntityFilterMode("any")}
+                  />
+                  <FilterPill
+                    label="All"
+                    active={entityFilterMode === "all"}
+                    onPress={() => setEntityFilterMode("all")}
+                  />
+                </View>
+              </View>
+            ) : null}
             <Text style={styles.helperText}>
               Search also recognizes saved aliases and returns the canonical archive value.
             </Text>
@@ -743,6 +768,9 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: theme.typography.caption,
     fontWeight: "700",
+  },
+  entityModeRow: {
+    gap: theme.spacing.xs,
   },
   groupLabel: {
     color: theme.colors.textMuted,

@@ -72,9 +72,21 @@ export type MemoryRetrievalMatch = {
   alias?: string;
 };
 
+export type MemoryRetrievalContext = {
+  source: "tiny_chapters_archive";
+  memoryId: string;
+  deepLink: string;
+  lifecycleStatus: MemoryLifecycleStatus;
+  trustLevel: "user_authored_finalized" | "user_authored_draft";
+  matchedBy: MemoryRetrievalMatch["type"][];
+  entityIds: string[];
+};
+
 export type MemoryRetrievalResult = {
   memory: Memory;
   matches: MemoryRetrievalMatch[];
+  score: number;
+  context: MemoryRetrievalContext;
 };
 
 export type MemoryMetadataSuggestion = {

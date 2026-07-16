@@ -183,13 +183,20 @@ Future Codex sessions should check this file first when planning work. Mark phas
   - Retention/deletion-state expansion remains future work when a real product need appears.
 - Phase 20: Retrieval and Search Foundation
   Planned.
-  Expand the current archive retrieval model so Tiny Chapters can later support richer people/place/project/topic search and provider-ready context retrieval.
+  Completed.
+  Tiny Chapters now has canonical vocabulary, alias-aware matching, deterministic retrieval ranking, stable pagination inputs, explicit Any/All entity-filter semantics, and a provider-ready context projection without exposing provider access yet.
   Completed slice:
   1. Phase 20.1: Canonical vocabulary and alias resolution — completed.
-     Additive canonical entity, alias, and memory-membership tables exist with RLS and confirmed Phase 19 metadata backfill. The memory service maintains the index during memory writes and approved metadata promotion using batch upserts. Search exposes grouped, count-sorted filters, hides zero-count entities, resolves exact canonical names or aliases into retrieval matches, receives explicit match evidence, separates reference-data loading from result retrieval, and debounces text search. Provider-facing retrieval contracts and broader ranking remain future work.
+     Additive canonical entity, alias, and memory-membership tables exist with RLS and confirmed Phase 19 metadata backfill. The memory service maintains the index during memory writes and approved metadata promotion using batch upserts. Search exposes grouped, count-sorted filters, hides zero-count entities, resolves exact canonical names or aliases into retrieval matches, receives explicit match evidence, separates reference-data loading from result retrieval, and debounces text search.
+  2. Phase 20.2: Retrieval quality and context projection — completed.
+     Retrieval ranks canonical entity matches above aliases, entity filters, and text matches, supports stable limit/offset inputs, supports Any/All entity filtering, and returns lifecycle-aware context with provenance and `/memory/:id` deep-link targets.
 - Phase 21: Provider Boundary and Authorization
-  Planned.
-  Define Tiny Chapters as a secure life-memory provider with scoped permissions, retrieval logging, deep-link behavior, and revocation-ready consumer access.
+  In progress.
+  The first slice now defines versioned provider contract metadata and adds owner-scoped provider grants plus retrieval access logs. Grants support the initial `memories:read` scope and active/revoked status, while logs record the provider, operation, scope, query summary, and result count without exposing direct table access to consumers.
+  Remaining work:
+  1. Add a controlled provider endpoint/adapter that validates an active grant before retrieval.
+  2. Connect retrieval results to the access logger and enforce approved/finalized visibility.
+  3. Define and validate consumer-facing deep-link and revocation behavior.
 - Phase 22: Personal Assistant Read-Only Integration
   Planned.
   Let the Personal Assistant search and read approved Tiny Chapters content through controlled contracts without duplicating full durable records.
