@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -8,7 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 
 import { DatePickerField } from "@/components/DatePickerField";
 import { FadeInView } from "@/components/FadeInView";
@@ -19,11 +19,13 @@ import { toLocalDateKey } from "@/lib/dates";
 import { useMemoryService } from "@/services/memoryService";
 import { theme } from "@/theme/theme";
 import type {
-  Memory,
   AttachedPhotoSyncStatus,
   MemoryCollection,
+  MemoryEntity,
+  MemoryEntityKind,
   MemoryImportance,
   MemoryLifecycleStatus,
+  MemoryRetrievalResult,
 } from "@/types/memory";
 
 const PHOTO_STATUS_FILTERS: Array<{
@@ -37,6 +39,16 @@ const PHOTO_STATUS_FILTERS: Array<{
   { key: "preserved_copy", label: "Preserved copy" },
 ];
 
+const ENTITY_FILTER_GROUPS: Array<{ kind: MemoryEntityKind; label: string }> = [
+  { kind: "person", label: "People" },
+  { kind: "place", label: "Places" },
+  { kind: "project", label: "Projects" },
+  { kind: "topic", label: "Topics" },
+  { kind: "tag", label: "Canonical tags" },
+];
+
+const MAX_VISIBLE_ENTITIES = 8;
+
 function parseTagFilters(value: string) {
   return [...new Set(value.split(",").map((tag) => tag.trim().toLowerCase()).filter(Boolean))];
 }
@@ -45,6 +57,7 @@ function buildFilterSummary(options: {
   query: string;
   tagFilters: string[];
   selectedCollections: MemoryCollection[];
+  selectedEntities: MemoryEntity[];
   fromEnabled: boolean;
   fromDate: string;
   toEnabled: boolean;
@@ -69,6 +82,12 @@ function buildFilterSummary(options: {
   if (options.selectedCollections.length) {
     parts.push(
       `collections ${options.selectedCollections.map((collection) => collection.title).join(", ")}`
+    );
+  }
+
+  if (options.selectedEntities.length) {
+    parts.push(
+      `archive vocabulary ${options.selectedEntities.map((entity) => entity.canonicalName).join(", ")}`
     );
   }
 
@@ -138,12 +157,16 @@ function FilterPill({
 }
 
 export default function SearchScreen() {
-  const { getCollections, searchMemories } = useMemoryService();
+  const { getArchiveVocabulary, getCollections, retrieveMemories } = useMemoryService();
+  const isFocused = useIsFocused();
+  const searchRequestRef = useRef(0);
   const [query, setQuery] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [collections, setCollections] = useState<MemoryCollection[]>([]);
-  const [results, setResults] = useState<Memory[]>([]);
+  const [vocabulary, setVocabulary] = useState<MemoryEntity[]>([]);
+  const [results, setResults] = useState<MemoryRetrievalResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingReferences, setIsLoadingReferences] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [fromEnabled, setFromEnabled] = useState(false);
   const [toEnabled, setToEnabled] = useState(false);
@@ -153,6 +176,7 @@ export default function SearchScreen() {
   const [guidedOnly, setGuidedOnly] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
+  const [selectedEntityIds, setSelectedEntityIds] = useState<string[]>([]);
   const [selectedLifecycleStatuses, setSelectedLifecycleStatuses] = useState<
     MemoryLifecycleStatus[]
   >([]);
@@ -160,11 +184,16 @@ export default function SearchScreen() {
   const [selectedPhotoStatuses, setSelectedPhotoStatuses] = useState<AttachedPhotoSyncStatus[]>(
     []
   );
+  const [expandedEntityGroups, setExpandedEntityGroups] = useState<MemoryEntityKind[]>([]);
 
   const tagFilters = useMemo(() => parseTagFilters(tagInput), [tagInput]);
   const selectedCollections = useMemo(
     () => collections.filter((collection) => selectedCollectionIds.includes(collection.id)),
     [collections, selectedCollectionIds]
+  );
+  const selectedEntities = useMemo(
+    () => vocabulary.filter((entity) => selectedEntityIds.includes(entity.id)),
+    [selectedEntityIds, vocabulary]
   );
   const filterSummary = useMemo(
     () =>
@@ -172,6 +201,7 @@ export default function SearchScreen() {
         query,
         tagFilters,
         selectedCollections,
+        selectedEntities,
         fromEnabled,
         fromDate,
         toEnabled,
@@ -194,76 +224,122 @@ export default function SearchScreen() {
       photosOnly,
       query,
       selectedPhotoStatuses,
+      selectedEntities,
       tagFilters,
       toDate,
       toEnabled,
     ]
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      async function loadReferences() {
+        setIsLoadingReferences(true);
+        setErrorMessage("");
+
+        try {
+          const [nextCollections, nextVocabulary] = await Promise.all([
+            getCollections(),
+            getArchiveVocabulary(),
+          ]);
+
+          if (isActive) {
+            setCollections(nextCollections);
+            setVocabulary(nextVocabulary);
+          }
+        } catch (error) {
+          if (isActive) {
+            setErrorMessage(error instanceof Error ? error.message : "Could not load search filters.");
+          }
+        } finally {
+          if (isActive) {
+            setIsLoadingReferences(false);
+          }
+        }
+      }
+
+      void loadReferences();
+
+      return () => {
+        isActive = false;
+      };
+    }, [getArchiveVocabulary, getCollections])
+  );
+
   const runSearch = useCallback(() => {
-    let isActive = true;
+    const requestId = searchRequestRef.current + 1;
+    searchRequestRef.current = requestId;
 
     async function loadResults() {
       setIsLoading(true);
       setErrorMessage("");
 
       try {
-        const [nextResults, nextCollections] = await Promise.all([
-          searchMemories({
-          query,
-          from: fromEnabled ? fromDate : null,
-          to: toEnabled ? toDate : null,
-          tags: tagFilters,
-          collectionIds: selectedCollectionIds,
-          hasPhotos: photosOnly || selectedPhotoStatuses.length ? true : undefined,
-          hasGuidedContext: guidedOnly ? true : undefined,
-          isFavorite: favoritesOnly ? true : undefined,
-          lifecycleStatuses: selectedLifecycleStatuses,
-          importance: selectedImportance,
-          photoStatuses: selectedPhotoStatuses,
-          }),
-          getCollections(),
-        ]);
+        const nextResults = await retrieveMemories(
+          {
+            query,
+            from: fromEnabled ? fromDate : null,
+            to: toEnabled ? toDate : null,
+            tags: tagFilters,
+            collectionIds: selectedCollectionIds,
+            hasPhotos: photosOnly || selectedPhotoStatuses.length ? true : undefined,
+            hasGuidedContext: guidedOnly ? true : undefined,
+            isFavorite: favoritesOnly ? true : undefined,
+            lifecycleStatuses: selectedLifecycleStatuses,
+            importance: selectedImportance,
+            photoStatuses: selectedPhotoStatuses,
+            entityIds: selectedEntityIds,
+          },
+          { vocabulary }
+        );
 
-        if (isActive) {
+        if (requestId === searchRequestRef.current) {
           setResults(nextResults);
-          setCollections(nextCollections);
         }
       } catch (error) {
-        if (isActive) {
+        if (requestId === searchRequestRef.current) {
           setErrorMessage(error instanceof Error ? error.message : "Could not search chapters.");
         }
       } finally {
-        if (isActive) {
+        if (requestId === searchRequestRef.current) {
           setIsLoading(false);
         }
       }
     }
 
     void loadResults();
-
-    return () => {
-      isActive = false;
-    };
   }, [
     fromDate,
     fromEnabled,
-      favoritesOnly,
-      guidedOnly,
-      getCollections,
-      photosOnly,
-      query,
-      selectedCollectionIds,
-      selectedImportance,
-      selectedLifecycleStatuses,
-      searchMemories,
-      selectedPhotoStatuses,
-      tagFilters,
+    favoritesOnly,
+    guidedOnly,
+    photosOnly,
+    query,
+    selectedCollectionIds,
+    selectedEntityIds,
+    selectedImportance,
+    selectedLifecycleStatuses,
+    retrieveMemories,
+    selectedPhotoStatuses,
+    tagFilters,
     toDate,
     toEnabled,
+    vocabulary,
   ]);
 
-  useFocusEffect(runSearch);
+  useEffect(() => {
+    if (!isFocused || isLoadingReferences) {
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      void runSearch();
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [isFocused, isLoadingReferences, runSearch]);
 
   const clearFilters = () => {
     setQuery("");
@@ -276,6 +352,7 @@ export default function SearchScreen() {
     setGuidedOnly(false);
     setFavoritesOnly(false);
     setSelectedCollectionIds([]);
+    setSelectedEntityIds([]);
     setSelectedLifecycleStatuses([]);
     setSelectedImportance([]);
     setSelectedPhotoStatuses([]);
@@ -349,6 +426,78 @@ export default function SearchScreen() {
                 Create collections from Write or chapter detail and they will show up here.
               </Text>
             )}
+          </View>
+
+          <View style={styles.filterGroup}>
+            <Text style={styles.groupLabel}>Archive vocabulary</Text>
+            {vocabulary.some((entity) => entity.memoryCount > 0) ? (
+              ENTITY_FILTER_GROUPS.map((group) => {
+                const entities = vocabulary
+                  .filter((entity) => entity.kind === group.kind && entity.memoryCount > 0)
+                  .sort((left, right) => {
+                    if (right.memoryCount !== left.memoryCount) {
+                      return right.memoryCount - left.memoryCount;
+                    }
+
+                    return left.canonicalName.localeCompare(right.canonicalName);
+                  });
+                if (!entities.length) {
+                  return null;
+                }
+
+                const isExpanded = expandedEntityGroups.includes(group.kind);
+                const visibleEntities = isExpanded
+                  ? entities
+                  : entities.slice(0, MAX_VISIBLE_ENTITIES);
+
+                return (
+                  <View key={group.kind} style={styles.entityGroup}>
+                    <Text style={styles.entityGroupLabel}>{group.label}</Text>
+                    <View style={styles.filterWrapRow}>
+                      {visibleEntities.map((entity) => {
+                        const active = selectedEntityIds.includes(entity.id);
+                        return (
+                          <FilterPill
+                            key={entity.id}
+                            label={`${entity.canonicalName} (${entity.memoryCount})`}
+                            active={active}
+                            onPress={() =>
+                              setSelectedEntityIds((current) =>
+                                current.includes(entity.id)
+                                  ? current.filter((id) => id !== entity.id)
+                                  : [...current, entity.id]
+                              )
+                            }
+                          />
+                        );
+                      })}
+                    </View>
+                    {entities.length > MAX_VISIBLE_ENTITIES ? (
+                      <Pressable
+                        onPress={() =>
+                          setExpandedEntityGroups((current) =>
+                            current.includes(group.kind)
+                              ? current.filter((kind) => kind !== group.kind)
+                              : [...current, group.kind]
+                          )
+                        }
+                      >
+                        <Text style={styles.clearText}>
+                          {isExpanded ? "Show fewer" : `Show ${entities.length - MAX_VISIBLE_ENTITIES} more`}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                );
+              })
+            ) : (
+              <Text style={styles.helperText}>
+                Confirmed people, places, projects, topics, and tags will appear here as your archive grows.
+              </Text>
+            )}
+            <Text style={styles.helperText}>
+              Search also recognizes saved aliases and returns the canonical archive value.
+            </Text>
           </View>
 
           <View style={styles.filterGroup}>
@@ -501,9 +650,14 @@ export default function SearchScreen() {
         </FadeInView>
       ) : (
         <View style={styles.list}>
-          {results.map((memory, index) => (
-            <FadeInView key={memory.id} delay={170 + index * 35} distance={10}>
-              <MemoryCard memory={memory} />
+          {results.map((result, index) => (
+            <FadeInView key={result.memory.id} delay={170 + index * 35} distance={10}>
+              <MemoryCard memory={result.memory} />
+              {result.matches.length ? (
+                <Text style={styles.matchEvidence}>
+                  {result.matches.map((match) => match.label).join(" · ")}
+                </Text>
+              ) : null}
             </FadeInView>
           ))}
           {!results.length ? (
@@ -526,6 +680,13 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     gap: theme.spacing.lg,
     paddingBottom: theme.spacing.xl * 2,
+  },
+  matchEvidence: {
+    color: theme.colors.textSoft,
+    fontSize: theme.typography.caption,
+    lineHeight: 17,
+    marginTop: -theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
   },
   searchShell: {
     backgroundColor: "#F6EBDD",
@@ -574,6 +735,14 @@ const styles = StyleSheet.create({
   },
   filterGroup: {
     gap: theme.spacing.sm,
+  },
+  entityGroup: {
+    gap: theme.spacing.xs,
+  },
+  entityGroupLabel: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption,
+    fontWeight: "700",
   },
   groupLabel: {
     color: theme.colors.textMuted,

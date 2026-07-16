@@ -10,6 +10,7 @@ import type {
   MemoryGuidanceContext,
   MemoryImportance,
   MemoryLifecycleStatus,
+  MemoryEntityKind,
   MemoryMetadataSuggestionField,
   MemoryMetadataSuggestionStatus,
 } from "@/types/memory";
@@ -61,6 +62,25 @@ export type SupabaseMemoryMetadataSuggestionRow = {
   model: string | null;
   created_at: string;
   reviewed_at: string | null;
+};
+
+export type SupabaseMemoryEntityRow = {
+  id: string;
+  user_id: string;
+  kind: MemoryEntityKind;
+  canonical_name: string;
+  normalized_name: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SupabaseMemoryEntityAliasRow = {
+  id: string;
+  entity_id: string;
+  user_id: string;
+  alias: string;
+  normalized_alias: string;
+  created_at: string;
 };
 
 export type SupabaseMemoryCollectionRow = {

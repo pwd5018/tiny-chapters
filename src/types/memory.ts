@@ -4,6 +4,7 @@ export type MemoryLifecycleStatus = "draft" | "finalized";
 export type MemoryImportance = 1 | 2 | 3;
 export type MemoryMetadataSuggestionField = "tag" | "person" | "place" | "project" | "topic";
 export type MemoryMetadataSuggestionStatus = "pending" | "approved" | "rejected";
+export type MemoryEntityKind = MemoryMetadataSuggestionField;
 export type AttachedPhotoSyncStatus =
   | "local_only"
   | "pending_nas_match"
@@ -50,6 +51,30 @@ export type MemoryMetadata = {
   places: string[];
   projects: string[];
   topics: string[];
+};
+
+export type MemoryEntity = {
+  id: string;
+  kind: MemoryEntityKind;
+  canonicalName: string;
+  aliases: string[];
+  memoryCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MemoryRetrievalMatch = {
+  type: "text" | "canonical_entity" | "alias" | "entity_filter";
+  label: string;
+  entityId?: string;
+  entityKind?: MemoryEntityKind;
+  canonicalName?: string;
+  alias?: string;
+};
+
+export type MemoryRetrievalResult = {
+  memory: Memory;
+  matches: MemoryRetrievalMatch[];
 };
 
 export type MemoryMetadataSuggestion = {

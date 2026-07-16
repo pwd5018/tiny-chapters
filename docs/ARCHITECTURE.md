@@ -69,7 +69,7 @@ Why this changed:
   Current collection groundwork inside this seam now includes collection CRUD, memory-to-collection membership writes, and grouped reads such as loading the memories that belong to a collection.
   Search now also understands collection membership as a structured filter rather than treating larger chapters as text-only decoration.
   Phase 18 groundwork now keeps additive media metadata attached to those refs, including `mediaKind`, optional duration, mime type, and optional poster references, while leaving the current storage names stable.
-  The first Phase 19 slice extends this seam with a `memory_metadata` sidecar for confirmed metadata and lifecycle state. Favorite flags, importance, people, places, projects, topics, and draft/finalized state now live in that sidecar instead of being implied from free-form text or AI output.
+  Phase 19 extends this seam with a `memory_metadata` sidecar for confirmed metadata and lifecycle state, plus `memory_metadata_suggestions` for unconfirmed AI proposals. Favorite flags, importance, people, places, projects, topics, and finalized state live in confirmed storage instead of being implied from free-form text or AI output. Suggestions are generated from saved chapter text only, must include exact text evidence, and require explicit approval before promotion.
   Future domain expansion should continue to build around this seam rather than encouraging direct cross-app reads of Supabase tables. If Tiny Chapters later becomes a provider for the Personal Assistant, the provider layer should still sit above the repository model rather than bypass it.
 - `photoService`
   Selects the active provider (`mock` or `nas`) and exposes shared operations such as date lookup, search, folders, connection tests, and match requests.
@@ -210,12 +210,15 @@ Recommended direction:
 - generalize `memory_photo_refs` into a broader media-reference seam later so video and voice can fit naturally
 - preserve the difference between user-authored truth, approved derived metadata, unconfirmed inference, and temporary context
 
-Current Phase 19 foundation:
+Completed Phase 19 outcome:
 
 - confirmed metadata now has its own sidecar seam in `memory_metadata`
 - this sidecar is user-confirmed only
 - inferred or AI-generated metadata still does not belong in the durable confirmed seam without explicit approval
 - `memory_metadata_suggestions` holds user-triggered metadata proposals separately and only copies an approved suggestion into `memories.tags` or `memory_metadata`
+- Phase 20.1 adds `memory_entities`, `memory_entity_aliases`, and `memory_entity_memberships` as an additive canonical vocabulary and retrieval seam. Existing confirmed arrays remain compatible, while canonical names and aliases provide stable matching identities.
+- optional AI polish preserves follow-up question-and-answer pairs so it cannot blend distinct participants or roles; the local fallback retains only unambiguous source text
+- a separate user draft-save workflow is intentionally deferred; assistant-proposed drafts remain a later provider-boundary capability
 
 Future integration rule:
 
@@ -224,7 +227,7 @@ Future integration rule:
 
 RLS expectations:
 
-- `profiles`, `memories`, `memory_metadata`, and `memory_photo_refs` all have RLS enabled.
+- `profiles`, `memories`, `memory_metadata`, `memory_metadata_suggestions`, `memory_entities`, `memory_entity_aliases`, `memory_entity_memberships`, and `memory_photo_refs` all have RLS enabled.
 - Policies are owner-scoped with `auth.uid() = id` for profiles and `auth.uid() = user_id` for memory tables.
 - Deleting a memory cascades to `memory_photo_refs` but never deletes the original photo.
 

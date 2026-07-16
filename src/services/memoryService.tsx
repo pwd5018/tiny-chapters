@@ -7,6 +7,8 @@ import {
   getSupabaseClient,
   type SupabaseMemoryCollectionMembershipRow,
   type SupabaseMemoryCollectionRow,
+  type SupabaseMemoryEntityAliasRow,
+  type SupabaseMemoryEntityRow,
   type SupabaseMemoryMetadataRow,
   type SupabaseMemoryMetadataSuggestionRow,
   type SupabaseMemoryPhotoRefRow,
@@ -37,10 +39,14 @@ import type {
   Memory,
   MemoryCollection,
   MemoryCollectionSummary,
+  MemoryEntity,
+  MemoryEntityKind,
   MemoryLifecycleStatus,
   MemoryMetadata,
   MemoryMetadataSuggestion,
   MemoryMetadataSuggestionField,
+  MemoryRetrievalResult,
+  MemoryRetrievalMatch,
 } from "@/types/memory";
 
 type MemoryStats = {
@@ -62,6 +68,16 @@ export type MemorySearchFilters = {
   lifecycleStatuses?: MemoryLifecycleStatus[];
   importance?: MemoryImportance[];
   photoStatuses?: AttachedPhotoSyncStatus[];
+  entityIds?: string[];
+};
+
+export type MemoryRetrievalQuery = MemorySearchFilters & {
+  limit?: number;
+  offset?: number;
+};
+
+export type MemoryRetrievalOptions = {
+  vocabulary?: MemoryEntity[];
 };
 
 type MemoryRepository = {
@@ -96,6 +112,13 @@ type MemoryRepository = {
   generateMemoryMetadataSuggestions: (memoryId: string) => Promise<MemoryMetadataSuggestion[]>;
   approveMemoryMetadataSuggestion: (suggestionId: string) => Promise<Memory>;
   rejectMemoryMetadataSuggestion: (suggestionId: string) => Promise<void>;
+  getArchiveVocabulary: () => Promise<MemoryEntity[]>;
+  resolveArchiveEntity: (kind: MemoryEntityKind, value: string) => Promise<MemoryEntity | null>;
+  addArchiveEntityAlias: (entityId: string, alias: string) => Promise<MemoryEntity>;
+  retrieveMemories: (
+    queryOrFilters: string | MemoryRetrievalQuery,
+    options?: MemoryRetrievalOptions
+  ) => Promise<MemoryRetrievalResult[]>;
   searchMemories: (queryOrFilters: string | MemorySearchFilters) => Promise<Memory[]>;
   getDailyPrompt: (date?: Date) => Promise<string>;
 };
@@ -123,11 +146,15 @@ function sortCollections(collections: MemoryCollection[]) {
 }
 
 function normalizeSearchValue(value: string) {
-  return value.trim().toLowerCase();
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function normalizeSuggestionValue(value: string) {
-  return normalizeSearchValue(value).replace(/\s+/g, " ");
+  return normalizeSearchValue(value);
+}
+
+function normalizeEntityValue(value: string) {
+  return normalizeSuggestionValue(value);
 }
 
 function toSuggestionFieldMetadataKey(field: MemoryMetadataSuggestionField) {
@@ -168,6 +195,10 @@ function normalizeSearchCollectionIds(collectionIds: string[] | undefined) {
   return [...new Set((collectionIds ?? []).map((id) => id.trim()).filter(Boolean))];
 }
 
+function normalizeSearchEntityIds(entityIds: string[] | undefined) {
+  return [...new Set((entityIds ?? []).map((id) => id.trim()).filter(Boolean))];
+}
+
 function normalizeSearchImportance(importance: MemoryImportance[] | undefined) {
   return [...new Set((importance ?? []).filter((value) => [1, 2, 3].includes(value)))];
 }
@@ -203,6 +234,7 @@ function normalizeSearchFilters(queryOrFilters: string | MemorySearchFilters): M
     lifecycleStatuses: normalizeSearchLifecycleStatuses(queryOrFilters.lifecycleStatuses),
     importance: normalizeSearchImportance(queryOrFilters.importance),
     photoStatuses: [...new Set(queryOrFilters.photoStatuses ?? [])],
+    entityIds: normalizeSearchEntityIds(queryOrFilters.entityIds),
   };
 }
 
@@ -241,7 +273,11 @@ function matchesQuery(memory: Memory, normalizedQuery: string) {
   return searchableParts.some((part) => normalizeSearchValue(part).includes(normalizedQuery));
 }
 
-function matchesStructuredFilters(memory: Memory, filters: MemorySearchFilters) {
+function matchesStructuredFilters(
+  memory: Memory,
+  filters: MemorySearchFilters,
+  entityMemoryIds?: Set<string>
+) {
   const memoryDate = memory.date.slice(0, 10);
 
   if (filters.from && memoryDate < filters.from) {
@@ -270,6 +306,10 @@ function matchesStructuredFilters(memory: Memory, filters: MemorySearchFilters) 
     if (!hasAnyCollection) {
       return false;
     }
+  }
+
+  if (filters.entityIds?.length && !entityMemoryIds?.has(memory.id)) {
+    return false;
   }
 
   if (filters.hasPhotos === true && !memory.attachedPhotos.length) {
@@ -413,6 +453,22 @@ function mapMetadataSuggestionRow(
   };
 }
 
+function mapMemoryEntityRow(
+  row: SupabaseMemoryEntityRow,
+  aliases: string[],
+  memoryCount: number
+): MemoryEntity {
+  return {
+    id: row.id,
+    kind: row.kind,
+    canonicalName: row.canonical_name,
+    aliases,
+    memoryCount,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapMemoryRow(
   row: SupabaseMemoryRow,
   metadataRow: SupabaseMemoryMetadataRow | null | undefined,
@@ -536,6 +592,167 @@ async function fetchMetadataSuggestionsByMemoryId(memoryId: string) {
   }
 
   return ((data ?? []) as SupabaseMemoryMetadataSuggestionRow[]).map(mapMetadataSuggestionRow);
+}
+
+async function fetchArchiveVocabularyRows(userId: string) {
+  const supabase = getSupabaseClient();
+  const [{ data: entityData, error: entityError }, { data: aliasData, error: aliasError }, { data: membershipData, error: membershipError }] =
+    await Promise.all([
+      supabase
+        .from("memory_entities")
+        .select("id, user_id, kind, canonical_name, normalized_name, created_at, updated_at")
+        .eq("user_id", userId)
+        .order("kind", { ascending: true })
+        .order("canonical_name", { ascending: true }),
+      supabase
+        .from("memory_entity_aliases")
+        .select("id, entity_id, user_id, alias, normalized_alias, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("memory_entity_memberships")
+        .select("entity_id")
+        .eq("user_id", userId),
+    ]);
+
+  if (entityError) {
+    throw entityError;
+  }
+  if (aliasError) {
+    throw aliasError;
+  }
+  if (membershipError) {
+    throw membershipError;
+  }
+
+  const aliasesByEntityId = new Map<string, string[]>();
+  for (const row of (aliasData ?? []) as SupabaseMemoryEntityAliasRow[]) {
+    const aliases = aliasesByEntityId.get(row.entity_id) ?? [];
+    aliases.push(row.alias);
+    aliasesByEntityId.set(row.entity_id, aliases);
+  }
+
+  const countsByEntityId = new Map<string, number>();
+  for (const row of (membershipData ?? []) as Array<{ entity_id: string }>) {
+    countsByEntityId.set(row.entity_id, (countsByEntityId.get(row.entity_id) ?? 0) + 1);
+  }
+
+  return ((entityData ?? []) as SupabaseMemoryEntityRow[]).map((row) =>
+    mapMemoryEntityRow(
+      row,
+      aliasesByEntityId.get(row.id) ?? [],
+      countsByEntityId.get(row.id) ?? 0
+    )
+  );
+}
+
+async function fetchMemoryIdsForEntityIds(userId: string, entityIds: string[]) {
+  if (!entityIds.length) {
+    return new Set<string>();
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("memory_entity_memberships")
+    .select("memory_id")
+    .eq("user_id", userId)
+    .in("entity_id", entityIds);
+
+  if (error) {
+    throw error;
+  }
+
+  return new Set(((data ?? []) as Array<{ memory_id: string }>).map((row) => row.memory_id));
+}
+
+async function fetchMemoryEntityMemberships(userId: string, entityIds: string[]) {
+  if (!entityIds.length) {
+    return new Map<string, string[]>();
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("memory_entity_memberships")
+    .select("memory_id, entity_id")
+    .eq("user_id", userId)
+    .in("entity_id", entityIds);
+
+  if (error) {
+    throw error;
+  }
+
+  const entityIdsByMemoryId = new Map<string, string[]>();
+  for (const row of (data ?? []) as Array<{ memory_id: string; entity_id: string }>) {
+    const current = entityIdsByMemoryId.get(row.memory_id) ?? [];
+    current.push(row.entity_id);
+    entityIdsByMemoryId.set(row.memory_id, current);
+  }
+
+  return entityIdsByMemoryId;
+}
+
+async function syncMemoryEntityMemberships(
+  memoryId: string,
+  userId: string,
+  memory: Pick<Memory, "tags" | "metadata">
+) {
+  const supabase = getSupabaseClient();
+  const values: Array<{ kind: MemoryEntityKind; value: string }> = [
+    ...memory.tags.map((value) => ({ kind: "tag" as const, value })),
+    ...memory.metadata.people.map((value) => ({ kind: "person" as const, value })),
+    ...memory.metadata.places.map((value) => ({ kind: "place" as const, value })),
+    ...memory.metadata.projects.map((value) => ({ kind: "project" as const, value })),
+    ...memory.metadata.topics.map((value) => ({ kind: "topic" as const, value })),
+  ]
+    .map((entry) => ({ ...entry, value: entry.value.trim() }))
+    .filter((entry) => entry.value.length > 0);
+
+  const uniqueValues = [
+    ...new Map(values.map((entry) => [`${entry.kind}:${normalizeEntityValue(entry.value)}`, entry])).values(),
+  ];
+  let entityIds: string[] = [];
+  if (uniqueValues.length) {
+    const { data: entityData, error: entityError } = await supabase
+      .from("memory_entities")
+      .upsert(
+        uniqueValues.map((entry) => ({
+          user_id: userId,
+          kind: entry.kind,
+          canonical_name: entry.value,
+          normalized_name: normalizeEntityValue(entry.value),
+        })),
+        { onConflict: "user_id,kind,normalized_name" }
+      )
+      .select("id");
+
+    if (entityError) {
+      throw entityError;
+    }
+
+    entityIds = ((entityData ?? []) as Array<{ id: string }>).map((row) => row.id);
+  }
+
+  const { error: deleteError } = await supabase
+    .from("memory_entity_memberships")
+    .delete()
+    .eq("user_id", userId)
+    .eq("memory_id", memoryId);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (!entityIds.length) {
+    return;
+  }
+
+  const { error: insertError } = await supabase.from("memory_entity_memberships").insert(
+    entityIds.map((entityId) => ({ memory_id: memoryId, entity_id: entityId, user_id: userId }))
+  );
+
+  if (insertError) {
+    throw insertError;
+  }
 }
 
 async function fetchCollectionRowsByUser(userId: string) {
@@ -1118,6 +1335,10 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     }
 
     await upsertMemoryMetadata(data.id, userId, input.metadata);
+    await syncMemoryEntityMemberships(data.id, userId, {
+      tags: input.tags,
+      metadata: createDefaultMemoryMetadata(input.metadata),
+    });
     await insertPhotoRefs(data.id, userId, input.attachedPhotos);
     await insertCollectionMemberships(data.id, userId, input.collectionIds ?? []);
 
@@ -1156,6 +1377,10 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     }
 
     await upsertMemoryMetadata(id, userId, input.metadata);
+    await syncMemoryEntityMemberships(id, userId, {
+      tags: input.tags,
+      metadata: createDefaultMemoryMetadata(input.metadata),
+    });
     if (Array.isArray(input.collectionIds)) {
       await setMemoryCollectionMemberships(id, input.collectionIds);
     }
@@ -1374,6 +1599,12 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    const memoryAfterApproval = await getMemoryById(memory.id);
+    if (!memoryAfterApproval) {
+      throw new Error("The approved chapter could not be reloaded for retrieval indexing.");
+    }
+    await syncMemoryEntityMemberships(memory.id, userId, memoryAfterApproval);
+
     const { error: approveError } = await supabase
       .from("memory_metadata_suggestions")
       .update({ status: "approved", reviewed_at: new Date().toISOString() })
@@ -1406,6 +1637,81 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const getArchiveVocabulary = async () => {
+    const userId = await getUserIdOrThrow();
+    return fetchArchiveVocabularyRows(userId);
+  };
+
+  const resolveArchiveEntity = async (kind: MemoryEntityKind, value: string) => {
+    const normalizedValue = normalizeEntityValue(value);
+    if (!normalizedValue) {
+      return null;
+    }
+
+    const vocabulary = await getArchiveVocabulary();
+    return (
+      vocabulary.find(
+        (entity) =>
+          entity.kind === kind &&
+          (normalizeEntityValue(entity.canonicalName) === normalizedValue ||
+            entity.aliases.some((alias) => normalizeEntityValue(alias) === normalizedValue))
+      ) ?? null
+    );
+  };
+
+  const addArchiveEntityAlias = async (entityId: string, alias: string) => {
+    const normalizedAlias = normalizeEntityValue(alias);
+    if (!normalizedAlias) {
+      throw new Error("Alias cannot be empty.");
+    }
+
+    const supabase = getSupabaseClient();
+    const userId = await getUserIdOrThrow();
+    const { data: entityData, error: entityError } = await supabase
+      .from("memory_entities")
+      .select("id, user_id, kind, canonical_name, normalized_name, created_at, updated_at")
+      .eq("id", entityId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (entityError) {
+      throw entityError;
+    }
+    if (!entityData) {
+      throw new Error("That archive entity could not be found.");
+    }
+
+    const entity = entityData as SupabaseMemoryEntityRow;
+    if (entity.normalized_name === normalizedAlias) {
+      const canonicalEntity = await resolveArchiveEntity(entity.kind, entity.canonical_name);
+      if (!canonicalEntity) {
+        throw new Error("The archive entity could not be reloaded.");
+      }
+      return canonicalEntity;
+    }
+
+    const { error: aliasError } = await supabase.from("memory_entity_aliases").upsert(
+      {
+        entity_id: entity.id,
+        user_id: userId,
+        alias: alias.trim(),
+        normalized_alias: normalizedAlias,
+      },
+      { onConflict: "user_id,normalized_alias" }
+    );
+
+    if (aliasError) {
+      throw aliasError;
+    }
+
+    const result = await resolveArchiveEntity(entity.kind, entity.canonical_name);
+    if (!result) {
+      throw new Error("Alias was saved but the archive entity could not be reloaded.");
+    }
+
+    return result;
+  };
+
   const deleteMemory = async (id: string) => {
     const supabase = getSupabaseClient();
     const userId = await getUserIdOrThrow();
@@ -1425,14 +1731,97 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const searchMemories = async (queryOrFilters: string | MemorySearchFilters) => {
+  const retrieveMemories = async (
+    queryOrFilters: string | MemoryRetrievalQuery,
+    options?: MemoryRetrievalOptions
+  ): Promise<MemoryRetrievalResult[]> => {
     const allMemories = await getMemories();
     const filters = normalizeSearchFilters(queryOrFilters);
     const normalizedQuery = normalizeSearchValue(filters.query ?? "");
-
-    return allMemories.filter(
-      (memory) => matchesQuery(memory, normalizedQuery) && matchesStructuredFilters(memory, filters)
+    const retrievalOptions = typeof queryOrFilters === "string" ? {} : queryOrFilters;
+    const vocabulary = options?.vocabulary ?? (await getArchiveVocabulary());
+    const queryEntities = vocabulary.filter(
+      (entity) =>
+        normalizedQuery &&
+        (normalizeEntityValue(entity.canonicalName) === normalizedQuery ||
+          entity.aliases.some((alias) => normalizeEntityValue(alias) === normalizedQuery))
     );
+    const queryEntityIds = queryEntities.map((entity) => entity.id);
+    const selectedEntities = vocabulary.filter((entity) => filters.entityIds?.includes(entity.id));
+    const userId = await getUserIdOrThrow();
+    const [filterEntityMemoryIds, queryEntityMemoryIds, entityIdsByMemoryId] = await Promise.all([
+      fetchMemoryIdsForEntityIds(userId, selectedEntities.map((entity) => entity.id)),
+      fetchMemoryIdsForEntityIds(userId, queryEntityIds),
+      fetchMemoryEntityMemberships(userId, [
+        ...new Set([...selectedEntities.map((entity) => entity.id), ...queryEntityIds]),
+      ]),
+    ]);
+
+    const results = allMemories.flatMap((memory) => {
+      const textMatch = Boolean(normalizedQuery) && matchesQuery(memory, normalizedQuery);
+      const queryEntityMatch = queryEntityMemoryIds.has(memory.id);
+      const hasSearchCriteria = Boolean(normalizedQuery) || Boolean(filters.entityIds?.length);
+      if (
+        (hasSearchCriteria && !textMatch && !queryEntityMatch) ||
+        !matchesStructuredFilters(memory, filters, filterEntityMemoryIds)
+      ) {
+        return [];
+      }
+
+      const matches: MemoryRetrievalMatch[] = [];
+      if (textMatch) {
+        matches.push({ type: "text", label: "Text or archive details" });
+      }
+
+      const matchedEntityIds = new Set(entityIdsByMemoryId.get(memory.id) ?? []);
+      for (const entity of queryEntities) {
+        if (!matchedEntityIds.has(entity.id)) {
+          continue;
+        }
+
+        const matchingAlias = entity.aliases.find(
+          (alias) => normalizeEntityValue(alias) === normalizedQuery
+        );
+        matches.push({
+          type: matchingAlias ? "alias" : "canonical_entity",
+          label: matchingAlias
+            ? `Alias “${matchingAlias}” → ${entity.canonicalName}`
+            : `Canonical ${entity.kind}: ${entity.canonicalName}`,
+          entityId: entity.id,
+          entityKind: entity.kind,
+          canonicalName: entity.canonicalName,
+          alias: matchingAlias,
+        });
+      }
+
+      for (const entity of selectedEntities) {
+        if (!matchedEntityIds.has(entity.id)) {
+          continue;
+        }
+
+        matches.push({
+          type: "entity_filter",
+          label: `Filtered by ${entity.kind}: ${entity.canonicalName}`,
+          entityId: entity.id,
+          entityKind: entity.kind,
+          canonicalName: entity.canonicalName,
+        });
+      }
+
+      return [{ memory, matches }];
+    });
+
+    const offset = Math.max(0, Math.floor(retrievalOptions.offset ?? 0));
+    const limit =
+      typeof retrievalOptions.limit === "number"
+        ? Math.max(0, Math.floor(retrievalOptions.limit))
+        : undefined;
+    return results.slice(offset, limit === undefined ? undefined : offset + limit);
+  };
+
+  const searchMemories = async (queryOrFilters: string | MemorySearchFilters) => {
+    const results = await retrieveMemories(queryOrFilters);
+    return results.map((result) => result.memory);
   };
 
   const getDailyPrompt = async (date = new Date()) => {
@@ -1503,6 +1892,10 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       generateMemoryMetadataSuggestions,
       approveMemoryMetadataSuggestion,
       rejectMemoryMetadataSuggestion,
+      getArchiveVocabulary,
+      resolveArchiveEntity,
+      addArchiveEntityAlias,
+      retrieveMemories,
       searchMemories,
       getDailyPrompt,
     }),

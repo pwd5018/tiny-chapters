@@ -164,22 +164,29 @@ Future Codex sessions should check this file first when planning work. Mark phas
      Allow attached local video references in the capture flow with metadata such as filename, duration, dimensions, and attachment state.
   3. Phase 18.3: Export and durability updates
      Preserve generalized media metadata in export and keep local-to-NAS durability behavior coherent.
-- Phase 19: Metadata, Provenance, and Draft Lifecycle
-  Planned.
-  Tiny Chapters should distinguish user-authored truth from approved derived metadata, unconfirmed AI inference, and assistant-proposed drafts.
-  Groundwork now in the repo:
+- Phase 19: Metadata and Provenance
+  Completed.
+  Tiny Chapters now distinguishes user-authored truth from approved derived metadata and unconfirmed AI inference without making AI output durable by default.
+  Completed work in the repo:
   1. `memory_metadata` now exists as an additive sidecar seam for confirmed metadata and lifecycle state without changing the primary `memories` table.
   2. Write and chapter detail now support lightweight user-confirmed metadata capture for favorite status, importance, people, places, projects, topics, tags, and draft/finalized state.
   3. Search and export now understand that confirmed metadata and lifecycle state as first-class archive structure rather than only free text.
   4. Phase 19.2 now keeps AI-generated people, places, projects, topics, and tags in `memory_metadata_suggestions` until the user approves or dismisses each one. The gateway receives confirmed archive vocabulary first so it can reuse existing values before proposing a new one, and is deliberately conservative: it can return none, caps output at three durable retrieval labels, and omits incidental moods, symptoms, and routine details.
-  Planned slices:
+  Scope ledger:
   1. confirmed metadata seams — completed as Phase 19.1
   2. inferred metadata suggestions — completed as Phase 19.2
   3. draft lifecycle for user-started and assistant-proposed entries
   4. retention and deletion-state expansion
+  Completion decision:
+  - A separate user draft-save workflow is intentionally deferred because the current Write/detail editing flow meets the need.
+  - Assistant-proposed drafts belong after provider authorization, in Phase 23.
+  - Retention/deletion-state expansion remains future work when a real product need appears.
 - Phase 20: Retrieval and Search Foundation
   Planned.
   Expand the current archive retrieval model so Tiny Chapters can later support richer people/place/project/topic search and provider-ready context retrieval.
+  Completed slice:
+  1. Phase 20.1: Canonical vocabulary and alias resolution — completed.
+     Additive canonical entity, alias, and memory-membership tables exist with RLS and confirmed Phase 19 metadata backfill. The memory service maintains the index during memory writes and approved metadata promotion using batch upserts. Search exposes grouped, count-sorted filters, hides zero-count entities, resolves exact canonical names or aliases into retrieval matches, receives explicit match evidence, separates reference-data loading from result retrieval, and debounces text search. Provider-facing retrieval contracts and broader ranking remain future work.
 - Phase 21: Provider Boundary and Authorization
   Planned.
   Define Tiny Chapters as a secure life-memory provider with scoped permissions, retrieval logging, deep-link behavior, and revocation-ready consumer access.

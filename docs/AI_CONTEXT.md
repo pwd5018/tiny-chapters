@@ -6,7 +6,7 @@ Read this file, [ARCHITECTURE.md](C:\Users\wolf-ai\Workspace\tiny-chapters\docs\
 
 Tiny Chapters is a private life-memory app for capturing durable personal records across family memories, diary-style entries, reflections, ideas, life events, and other meaningful chapters of lived experience. The current implementation still uses `memory` as the core storage and service term, but the product direction is broader than family-only capture now. The mobile app stores auth, memory text, tags, guided context, collection membership, and photo reference metadata in Supabase. Original photos stay outside Supabase. In the current personal workflow, a separate local Photo API indexes a Windows-accessible NAS share and serves metadata, thumbnails, and view URLs to the app.
 
-## Current status after Phase 19 groundwork
+## Current status after Phase 19
 
 Implemented in the repo now:
 
@@ -58,7 +58,7 @@ Not implemented yet:
 - NAS or device-photo dashboard suggestions
 - Advanced stats expansions beyond the current totals, monthly count, and streak summary that live on the Moments tab
 - A local companion workflow that resolves actual photo files for a printed book from the richer Phase 13 export manifest
-- Explicit person and location entities for structured search
+- Search UI for canonical entity filters and alias management
 - Semantic search
 - Product-mode cloud photo preservation
 
@@ -66,11 +66,11 @@ Current next-phase plan:
 
 - Phases 13 through 17 are complete.
 - Phase 18 has partial groundwork in the repo: local video refs and generalized attachment metadata exist, but NAS indexing, poster generation, richer previews, and voice-note support are still unfinished.
-- The next implementation priority is Phase 19: Metadata, Provenance, and Draft Lifecycle.
-- The first Phase 19 slice is now in the repo as an additive `memory_metadata` sidecar seam for confirmed metadata and lightweight draft/finalized state, without changing the primary `memories` record model or treating AI inference as durable truth.
-- Phase 19.2 now adds `memory_metadata_suggestions`: user-triggered text-based AI suggestions are generated from a freshly reloaded saved chapter, matched against other confirmed archive vocabulary where possible, then remain pending until individually approved or dismissed. Metadata inference uses chapter text only, never the generic writing prompt; each returned suggestion must cite an exact quote from that text. Editing a chapter clears its pending suggestions so stale text can never be reviewed as current. The extractor is archive-first rather than keyword-first: it may return no suggestions, returns at most three durable retrieval labels, and excludes passing moods, symptoms, and routine details. Approving a suggestion is the only path that promotes it into confirmed tags or metadata.
-- AI polish is optional and suggestion-only. It now receives each answered follow-up alongside its question so it can preserve the separate roles of people in the main event, observers, and reactions; ambiguous fragments are omitted rather than blended into a false sentence. The local fallback is intentionally more conservative and returns only the clear original answer.
-- The next Phase 19 slice should build the user-started and assistant-proposed draft lifecycle, still preserving approval and provenance boundaries.
+- Phase 19 is complete: `memory_metadata` holds confirmed user-controlled metadata, while `memory_metadata_suggestions` holds AI proposals until individually approved or dismissed. Metadata inference uses chapter text only, requires exact evidence, prefers existing confirmed archive values, and may return no suggestion.
+- AI polish is optional and suggestion-only. It receives each answered follow-up alongside its question so it preserves distinct participants, observers, and reactions; ambiguous fragments are omitted. The local fallback returns only the clear original answer.
+- A separate user draft-save workflow is intentionally deferred: the existing Write/detail editing flow meets the current need. Assistant-proposed drafts remain deferred to Phase 23, after provider authorization.
+- The next implementation priority is Phase 20: Retrieval and Search Foundation, beginning with canonical people/place/project/topic values and aliases for stronger matching and retrieval.
+- Phase 20.1 is complete: `memory_entities`, `memory_entity_aliases`, and `memory_entity_memberships` provide an additive canonical vocabulary seam. Confirmed Phase 19 tags and metadata are backfilled and create/update/approved-suggestion flows keep the membership index synchronized. Search exposes grouped canonical filters, resolves exact canonical names or aliases into retrieval matches, receives explicit match evidence, batches entity indexing, debounces text search, and loads reference data separately from results. Zero-count entities are retained in storage but hidden from filter suggestions.
 - The next print-focused step should still live in a separate local companion workflow that reads the Tiny Chapters export, resolves actual photo files, and assembles print-ready output.
 - A separate un-numbered side quest is parked for later: a private, diary-only browser companion. It should reuse the existing Supabase and memory-service seams, exclude all media/NAS/native-reminder behavior, and not be treated as current implementation work.
 
