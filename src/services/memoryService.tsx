@@ -48,6 +48,11 @@ import type {
   MemoryRetrievalResult,
   MemoryRetrievalMatch,
 } from "@/types/memory";
+import {
+  createMemoryProviderAdapter,
+  type MemoryProviderRetrievalRequest,
+} from "@/services/provider/providerAdapter";
+import type { MemoryProviderRetrievalResponse } from "@/services/provider/providerTypes";
 
 type MemoryStats = {
   totalMemories: number;
@@ -120,6 +125,9 @@ type MemoryRepository = {
     queryOrFilters: string | MemoryRetrievalQuery,
     options?: MemoryRetrievalOptions
   ) => Promise<MemoryRetrievalResult[]>;
+  retrieveMemoriesForProvider: (
+    request: MemoryProviderRetrievalRequest
+  ) => Promise<MemoryProviderRetrievalResponse<MemoryRetrievalResult>>;
   searchMemories: (queryOrFilters: string | MemorySearchFilters) => Promise<Memory[]>;
   getDailyPrompt: (date?: Date) => Promise<string>;
 };
@@ -1890,6 +1898,8 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
     return results.map((result) => result.memory);
   };
 
+  const retrieveMemoriesForProvider = createMemoryProviderAdapter(retrieveMemories);
+
   const getDailyPrompt = async (date = new Date()) => {
     const userId = await getUserIdOrThrow();
     const dateKey = toLocalDateKey(date);
@@ -1962,6 +1972,7 @@ export function MemoryProvider({ children }: { children: ReactNode }) {
       resolveArchiveEntity,
       addArchiveEntityAlias,
       retrieveMemories,
+      retrieveMemoriesForProvider,
       searchMemories,
       getDailyPrompt,
     }),

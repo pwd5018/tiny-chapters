@@ -64,6 +64,36 @@ export async function listMemoryProviderGrants(): Promise<MemoryProviderGrant[]>
   return (data ?? []).map((row) => mapGrant(row as ProviderGrantRow));
 }
 
+export async function requireActiveMemoryProviderGrant(
+  providerKey: string,
+  scope: MemoryProviderScope
+): Promise<MemoryProviderGrant> {
+  const client = requireSupabase();
+  const userId = await requireUserId();
+  const { data, error } = await client
+    .from("memory_provider_grants")
+    .select("id, provider_key, provider_label, scopes, status, granted_at, revoked_at, last_used_at")
+    .eq("user_id", userId)
+    .eq("provider_key", providerKey)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error(`Provider access is not active for ${providerKey}.`);
+  }
+
+  const grant = mapGrant(data as ProviderGrantRow);
+  if (!grant.scopes.includes(scope)) {
+    throw new Error(`Provider ${providerKey} is missing the ${scope} scope.`);
+  }
+
+  return grant;
+}
+
 export async function grantMemoryProviderAccess(input: {
   providerKey: string;
   providerLabel: string;

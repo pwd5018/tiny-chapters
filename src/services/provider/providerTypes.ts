@@ -29,3 +29,8 @@ export type MemoryProviderRetrievalContract = {
   version: "1";
   scope: "memories:read";
 };
+
+export type MemoryProviderRetrievalResponse<T> = MemoryProviderRetrievalContract & {
+  providerKey: string;
+  items: T[];
+};

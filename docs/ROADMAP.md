@@ -192,11 +192,8 @@ Future Codex sessions should check this file first when planning work. Mark phas
      Retrieval ranks canonical entity matches above aliases, entity filters, and text matches, supports stable limit/offset inputs, supports Any/All entity filtering, and returns lifecycle-aware context with provenance and `/memory/:id` deep-link targets.
 - Phase 21: Provider Boundary and Authorization
   In progress.
-  The first slice now defines versioned provider contract metadata and adds owner-scoped provider grants plus retrieval access logs. Grants support the initial `memories:read` scope and active/revoked status, while logs record the provider, operation, scope, query summary, and result count without exposing direct table access to consumers.
-  Remaining work:
-  1. Add a controlled provider endpoint/adapter that validates an active grant before retrieval.
-  2. Connect retrieval results to the access logger and enforce approved/finalized visibility.
-  3. Define and validate consumer-facing deep-link and revocation behavior.
+  Completed for the current mobile/service boundary.
+  The provider contract, owner-scoped grants, revocation state, access logs, finalized-only retrieval, and `/memory/:id` deep-link validation now live above the repository model. Provider retrieval requires an active `memories:read` grant and records a summarized access event. An external/server-side provider transport is intentionally deferred to Phase 22, when a trusted consumer is ready.
 - Phase 22: Personal Assistant Read-Only Integration
   Planned.
   Let the Personal Assistant search and read approved Tiny Chapters content through controlled contracts without duplicating full durable records.
