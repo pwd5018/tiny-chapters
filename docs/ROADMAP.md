@@ -194,6 +194,12 @@ Future Codex sessions should check this file first when planning work. Mark phas
   In progress.
   Completed for the current mobile/service boundary.
   The provider contract, owner-scoped grants, revocation state, access logs, finalized-only retrieval, and `/memory/:id` deep-link validation now live above the repository model. Provider retrieval requires an active `memories:read` grant and records a summarized access event. An external/server-side provider transport is intentionally deferred to Phase 22, when a trusted consumer is ready.
+- Phase 21.5: Flexible Memory Capture and Metadata Editing
+  Completed before the Phase 22 provider transport work.
+  Tiny Chapters now supports both answering today's question and writing a memory from scratch. Free-written entries save with an explicit `Free writing` prompt and do not acquire guided-question context. AI polish uses the latest editor contents after manual additions, and the local fallback follows the same rule. Metadata suggestions can preserve multiple distinct durable candidates instead of stopping at one or three total, while the detail screen exposes a direct path to add people, places, projects, or topics manually.
+  Validation completed:
+  1. `npm run typecheck`
+  2. `photo-api` TypeScript build
 - Phase 22: Personal Assistant Read-Only Integration
   Planned.
   Let the Personal Assistant search and read approved Tiny Chapters content through controlled contracts without duplicating full durable records.

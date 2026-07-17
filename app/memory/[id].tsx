@@ -543,6 +543,11 @@ export default function MemoryDetailScreen() {
                 selectedTagsInput={tagsInput}
                 onMetadataChange={setMetadata}
                 onTagsInputChange={setTagsInput}
+                onRequestEdit={() => {
+                  setIsEditing(true);
+                  setSaveMessage("");
+                  setErrorMessage("");
+                }}
               />
             ) : null}
 

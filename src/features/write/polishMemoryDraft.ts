@@ -25,9 +25,9 @@ function ensureSentenceEnding(value: string) {
 }
 
 export function polishGuidedMemoryDraftLocally(draft: GuidedMemoryDraft) {
-  const original = normalizeFragment(draft.originalAnswer);
   const composed = normalizeFragment(draft.composedText);
-  const base = original || composed;
+  const original = normalizeFragment(draft.originalAnswer);
+  const base = composed || original;
 
   if (!base) {
     return "";

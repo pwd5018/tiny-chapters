@@ -179,6 +179,7 @@ export function WriteMemoryScreen() {
   const [polishDebugStatus, setPolishDebugStatus] = useState<AiDebugStatus | null>(null);
   const [dailyPrompt, setDailyPrompt] = useState("What made today worth remembering?");
   const [sameDayMemoryCount, setSameDayMemoryCount] = useState(0);
+  const [isFreeWriting, setIsFreeWriting] = useState(false);
   const [tagsInput, setTagsInput] = useState("");
   const [metadata, setMetadata] = useState<MemoryMetadata>(() => createDefaultMemoryMetadata());
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
@@ -309,10 +310,10 @@ export function WriteMemoryScreen() {
     try {
       await createMemory({
         date: parseDateKeyAsLocalDate(selectedDateKey).toISOString(),
-        prompt: dailyPrompt,
+        prompt: isFreeWriting ? "Free writing" : dailyPrompt,
         text: trimmed,
         tags: parseMetadataList(tagsInput),
-        guidedContext: createMemoryGuidanceContext(guidedMemoryDraft),
+        guidedContext: isFreeWriting ? null : createMemoryGuidanceContext(guidedMemoryDraft),
         metadata,
         collectionIds: selectedCollectionIds,
         attachedPhotos: selectedAttachments,
@@ -454,7 +455,9 @@ export function WriteMemoryScreen() {
 
     const nextDraft = {
       ...guidedMemoryDraft,
-      composedText: composeGuidedMemoryText(guidedMemoryDraft),
+      // The editor is the latest user-authored draft. Do not rebuild from the
+      // older original answer after the user has manually added more text.
+      composedText: memoryText.trim() || composeGuidedMemoryText(guidedMemoryDraft),
     };
 
     setIsPolishingDraft(true);
@@ -571,6 +574,34 @@ export function WriteMemoryScreen() {
               </View>
 
               <View style={styles.promptCard}>
+                <View style={styles.modeRow}>
+                  <Pressable
+                    style={[styles.modeButton, !isFreeWriting ? styles.modeButtonActive : null]}
+                    onPress={() => setIsFreeWriting(false)}
+                  >
+                    <Text style={[styles.modeButtonText, !isFreeWriting ? styles.modeButtonTextActive : null]}>
+                      Today's question
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.modeButton, isFreeWriting ? styles.modeButtonActive : null]}
+                    onPress={() => setIsFreeWriting(true)}
+                  >
+                    <Text style={[styles.modeButtonText, isFreeWriting ? styles.modeButtonTextActive : null]}>
+                      Write from scratch
+                    </Text>
+                  </Pressable>
+                </View>
+                {isFreeWriting ? (
+                  <>
+                    <Text style={styles.promptLabel}>Free writing</Text>
+                    <Text style={styles.promptText}>Write about whatever you want to remember.</Text>
+                    <Text style={styles.promptHelper}>
+                      No question to answer and no follow-ups required. Just start anywhere.
+                    </Text>
+                  </>
+                ) : (
+                  <>
                 <Text style={styles.promptLabel}>
                   {sameDayMemoryCount > 0 ? "Another question for this day" : "Today's question"}
                 </Text>
@@ -580,6 +611,8 @@ export function WriteMemoryScreen() {
                     ? `You already saved ${sameDayMemoryCount} ${sameDayMemoryCount === 1 ? "memory" : "memories"} for this date. This prompt is here to help you catch a different part of the day.`
                     : "A tiny answer is enough. You can always come back and add more later."}
                 </Text>
+                  </>
+                )}
               </View>
             </ScreenHero>
           </FadeInView>
@@ -616,7 +649,7 @@ export function WriteMemoryScreen() {
                 textAlignVertical="top"
                 style={styles.input}
               />
-              {!hasGeneratedFollowUps ? (
+              {!isFreeWriting && !hasGeneratedFollowUps ? (
                 <Pressable
                   style={({ pressed }) => [
                     styles.guidedActionButton,
@@ -642,7 +675,7 @@ export function WriteMemoryScreen() {
             </View>
           </FadeInView>
 
-          <FadeInView delay={110}>
+          {!isFreeWriting ? <FadeInView delay={110}>
             <View style={styles.guidedCard}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionEyebrow}>Guided Questions</Text>
@@ -792,7 +825,7 @@ export function WriteMemoryScreen() {
                 </>
               )}
             </View>
-          </FadeInView>
+          </FadeInView> : null}
 
           <FadeInView delay={120}>
             <MemoryMetadataCard
@@ -1040,6 +1073,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: theme.spacing.xs,
     padding: theme.spacing.lg,
+  },
+  modeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  modeButton: {
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  modeButtonActive: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
+  modeButtonText: {
+    color: theme.colors.textSecondary,
+    fontSize: theme.typography.caption,
+    fontWeight: "700",
+  },
+  modeButtonTextActive: {
+    color: theme.colors.buttonText,
   },
   promptLabel: {
     color: theme.colors.accent,

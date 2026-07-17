@@ -220,7 +220,7 @@ function parseMetadataSuggestionsFromText(rawText: string, sourceText: string) {
       evidence,
     });
 
-    if (suggestions.length >= 3) {
+    if (suggestions.length >= 8) {
       break;
     }
   }
@@ -394,7 +394,8 @@ function createPolishPrompt(
     "Rules:",
     "- Rewrite the memory into 1 or 2 short natural sentences.",
     "- Keep the meaning grounded in the user's words.",
-    "- The original answer establishes the main event and its participants. Preserve those roles exactly unless a follow-up explicitly changes them.",
+    "- The original answer provides context, but the current draft is the latest user-authored version and must be treated as authoritative.",
+    "- Preserve every clear, substantive detail the user added to the current draft, including newly added people, places, and actions.",
     "- Each follow-up answer belongs only to its paired question. Use the question to resolve a short answer such as who watched, but never transfer that answer to the people in the main event.",
     "- The current draft may contain raw fragments. Do not treat it as an already coherent sentence or merge fragments merely because they are adjacent.",
     "- If a follow-up is incomplete or its relationship is unclear, omit it instead of inventing a connection.",
@@ -423,7 +424,7 @@ function createMetadataSuggestionsPrompt(
     "- Use only the chapter text below. Do not infer metadata from the writing prompt or from existing vocabulary alone.",
     "- Every suggestion needs evidence: copy a contiguous one-to-eight-word quote from the chapter text into evidence. If no exact quote supports it, omit the suggestion.",
     "- It is valid, and preferred, to return an empty suggestions array for a small or incidental entry.",
-    "- Return at most 3 suggestions total. Each must be useful for finding this chapter months later, not merely a phrase that appears in it.",
+    "- Return every distinct clearly named person, place, project, or durable topic that is meaningfully central, up to 8 suggestions total.",
     "- confidence is an integer from 0 to 100 measuring durable archive relevance, not certainty that words were mentioned.",
     "- First try to match an existing value in the same field. If one is a clear match, copy it exactly into matchedValue and value.",
     "- If no existing value is a clear match, set matchedValue to null and use a concise new value.",

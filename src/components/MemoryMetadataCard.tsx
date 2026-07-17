@@ -20,6 +20,7 @@ type MemoryMetadataCardProps = {
   title: string;
   onMetadataChange: (metadata: MemoryMetadata) => void;
   onTagsInputChange: (value: string) => void;
+  onRequestEdit?: () => void;
 };
 
 function MetadataPill({
@@ -93,6 +94,7 @@ export function MemoryMetadataCard({
   title,
   onMetadataChange,
   onTagsInputChange,
+  onRequestEdit,
 }: MemoryMetadataCardProps) {
   const updateLifecycle = (lifecycleStatus: MemoryLifecycleStatus) =>
     onMetadataChange({
@@ -210,6 +212,7 @@ export function MemoryMetadataCard({
           />
         </>
       ) : hasMetadata ? (
+        <>
         <View style={styles.summaryList}>
           <MetadataSummaryRow
             label="State"
@@ -237,10 +240,23 @@ export function MemoryMetadataCard({
             <MetadataSummaryRow label="Topics" value={metadata.topics.join(", ")} />
           ) : null}
         </View>
+        {onRequestEdit ? (
+          <Pressable style={styles.editDetailsButton} onPress={onRequestEdit}>
+            <Text style={styles.editDetailsButtonText}>Add or edit details</Text>
+          </Pressable>
+        ) : null}
+        </>
       ) : (
-        <Text style={styles.emptyText}>
-          No structured metadata yet. The chapter still stands on its own.
-        </Text>
+        <>
+          <Text style={styles.emptyText}>
+            No structured metadata yet. The chapter still stands on its own.
+          </Text>
+          {onRequestEdit ? (
+            <Pressable style={styles.editDetailsButton} onPress={onRequestEdit}>
+              <Text style={styles.editDetailsButtonText}>Add details manually</Text>
+            </Pressable>
+          ) : null}
+        </>
       )}
     </View>
   );
@@ -356,5 +372,18 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontSize: theme.typography.body,
     lineHeight: 22,
+  },
+  editDetailsButton: {
+    alignSelf: "flex-start",
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  editDetailsButtonText: {
+    color: theme.colors.accent,
+    fontSize: theme.typography.caption,
+    fontWeight: "700",
   },
 });
